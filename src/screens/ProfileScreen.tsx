@@ -23,6 +23,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import ApiService from '../services/api';
 import { User, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
 interface ProfileScreenProps {
   onBack: () => void;
@@ -48,6 +49,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [faqOpen, setFaqOpen] = useState(false);
   const [faqData, setFaqData] = useState<any[]>([]);
   const [faqLoading, setFaqLoading] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -245,6 +247,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Text style={styles.settingText}>{t('profile.aboutApp')}</Text>
             <Icon name="forward" size={16} color={COLORS.textMuted} />
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={() => setPrivacyOpen(true)}>
+            <Icon name="shield" size={20} color={COLORS.text} style={styles.settingIcon} />
+            <Text style={styles.settingText}>{t('profile.privacyPolicy')}</Text>
+            <Icon name="forward" size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
         </Card>
 
         <Card style={styles.sectionCard}>
@@ -349,6 +357,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             )}
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Privacy Policy Modal */}
+      <Modal visible={privacyOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPrivacyOpen(false)}>
+        <PrivacyPolicyScreen onBack={() => setPrivacyOpen(false)} />
       </Modal>
 
     </SafeAreaView>

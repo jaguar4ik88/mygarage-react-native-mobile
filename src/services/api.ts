@@ -281,6 +281,12 @@ class ApiService {
     }
   }
 
+  // Generic HTTP methods
+  async get<T = any>(endpoint: string): Promise<T> {
+    const response = await this.request<T>(endpoint);
+    return response.data;
+  }
+
   // User methods
   async getProfile(): Promise<User> {
     const response = await this.request<User>('/user');
