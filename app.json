@@ -1,29 +1,55 @@
 {
   "expo": {
-    "name": "mobile-clean",
-    "slug": "mobile-clean",
+    "name": "myGarage",
+    "slug": "mygarage",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1b1b1f"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "scheme": "mygarage",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mygarage.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "icon": "./assets/icon.png",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We use your location to find nearby service stations.",
+        "NSFaceIDUsageDescription": "We use Face ID to securely authenticate you and protect your personal data.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsArbitraryLoadsInWebContent": true,
+          "NSExceptionDomains": {
+            "localhost": {"NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true},
+            "127.0.0.1": {"NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true},
+            "192.168.7.5": {"NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true}
+          }
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "backgroundColor": "#1b1b1f"
       },
-      "edgeToEdgeEnabled": true
+      "icon": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher.png",
+      "package": "com.mygarage.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": []
   }
 }

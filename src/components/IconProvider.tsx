@@ -1,0 +1,136 @@
+import React from 'react';
+import { View } from 'react-native';
+import Svg, { Defs, Symbol, Use, Path } from 'react-native-svg';
+
+// Импортируем SVG спрайт
+const IconsSprite = () => (
+  <Svg style={{ position: 'absolute', width: 0, height: 0 }}>
+    <Defs>
+      {/* Navigation Icons */}
+      <Symbol id="home" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </Symbol>
+      
+      <Symbol id="manual" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+      </Symbol>
+      
+      <Symbol id="reminders" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,22A2,2 0 0,0 14,20H10A2,2 0 0,0 12,22M18,16V11L15.5,6.5C15.1,5.6 14.2,5 13.2,5H10.8C9.8,5 8.9,5.6 8.5,6.5L6,11V16H18M12,7A1,1 0 0,1 13,8A1,1 0 0,1 12,9A1,1 0 0,1 11,8A1,1 0 0,1 12,7Z"/>
+      </Symbol>
+      
+      <Symbol id="sto" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,2C8.13,2 5,5.13 5,9C5,14.25 12,22 12,22S19,14.25 19,9C19,5.13 15.87,2 12,2M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5Z"/>
+      </Symbol>
+      
+      <Symbol id="history" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3"/>
+      </Symbol>
+      
+      <Symbol id="profile" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+      </Symbol>
+      
+      {/* Action Icons */}
+      <Symbol id="add" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+      </Symbol>
+      
+      <Symbol id="edit" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+      </Symbol>
+      
+      <Symbol id="delete" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+      </Symbol>
+      
+      <Symbol id="close" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+      </Symbol>
+      
+      <Symbol id="forward" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z"/>
+      </Symbol>
+      
+      <Symbol id="back" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
+      </Symbol>
+      
+      {/* Status Icons */}
+      <Symbol id="notification" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.19 14,4.29 16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/>
+      </Symbol>
+      
+      <Symbol id="error" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,2L13.09,8.26L22,9L13.09,9.74L12,16L10.91,9.74L2,9L10.91,8.26L12,2M12,17A1,1 0 0,1 13,18A1,1 0 0,1 12,19A1,1 0 0,1 11,18A1,1 0 0,1 12,17Z"/>
+      </Symbol>
+      
+      <Symbol id="success" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/>
+      </Symbol>
+      
+      <Symbol id="warning" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+      </Symbol>
+      
+      <Symbol id="info" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z"/>
+      </Symbol>
+      
+      {/* Calendar and Time Icons */}
+      <Symbol id="calendar" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V8H19V19M7,10H12V15H7V10Z"/>
+      </Symbol>
+      
+      <Symbol id="tachometer-alt" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 19,16.5 17.3,18L15.9,16.6C17.2,15.4 18,13.8 18,12A6,6 0 0,0 12,6A6,6 0 0,0 6,12C6,13.8 6.8,15.4 8.1,16.6L6.7,18C5,16.5 4,14.4 4,12A8,8 0 0,1 12,4M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+      </Symbol>
+      
+      {/* File Icons */}
+      <Symbol id="file-pdf" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10.5,10.5A1.5,1.5 0 0,0 9,12A1.5,1.5 0 0,0 10.5,13.5A1.5,1.5 0 0,0 12,12A1.5,1.5 0 0,0 10.5,10.5M5.5,10.5A1.5,1.5 0 0,0 4,12A1.5,1.5 0 0,0 5.5,13.5A1.5,1.5 0 0,0 7,12A1.5,1.5 0 0,0 5.5,10.5M14.5,10.5A1.5,1.5 0 0,0 13,12A1.5,1.5 0 0,0 14.5,13.5A1.5,1.5 0 0,0 16,12A1.5,1.5 0 0,0 14.5,10.5Z"/>
+      </Symbol>
+      
+      {/* Car Icons */}
+      <Symbol id="car" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M5,11L6.5,6.5H17.5L19,11M17.5,16A1.5,1.5 0 0,1 16,14.5A1.5,1.5 0 0,1 17.5,13A1.5,1.5 0 0,1 19,14.5A1.5,1.5 0 0,1 17.5,16M6.5,16A1.5,1.5 0 0,1 5,14.5A1.5,1.5 0 0,1 6.5,13A1.5,1.5 0 0,1 8,14.5A1.5,1.5 0 0,1 6.5,16M18.92,6C18.72,5.42 18.16,5 17.5,5H6.5C5.84,5 5.28,5.42 5.08,6L3,12V20A1,1 0 0,0 4,21H5A1,1 0 0,0 6,20V19H18V20A1,1 0 0,0 19,21H20A1,1 0 0,0 21,20V12L18.92,6Z"/>
+      </Symbol>
+      
+      {/* Utility Icons */}
+      <Symbol id="refresh" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+      </Symbol>
+      
+      <Symbol id="lightbulb" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,6A6,6 0 0,1 18,12C18,14.22 16.79,16.16 15,17.2V19A1,1 0 0,1 14,20H10A1,1 0 0,1 9,19V17.2C7.21,16.16 6,14.22 6,12A6,6 0 0,1 12,6M14,21V22A1,1 0 0,1 13,23H11A1,1 0 0,1 10,22V21H14Z"/>
+      </Symbol>
+      
+      {/* Settings Icons */}
+      <Symbol id="theme" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+      </Symbol>
+      
+      <Symbol id="language" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12.87,15.07L10.33,12.56L10.36,12.53C12.1,10.59 13.34,8.36 14.07,6H17V4H10V2H8V4H1V6H12.17C11.5,7.92 10.44,9.75 9,11.35C8.07,10.32 7.3,9.19 6.69,8H4.69C5.42,9.63 6.42,11.17 7.67,12.56L2.58,17.58L4,19L9,14L12.11,17.11L12.87,15.07M18.5,10H16.5L12,22H14L15.12,19H19.87L21,22H23L18.5,10M15.88,17L17.5,12.67L19.12,17H15.88Z"/>
+      </Symbol>
+      
+      <Symbol id="about" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z"/>
+      </Symbol>
+      
+      <Symbol id="help" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z"/>
+      </Symbol>
+      
+      <Symbol id="contact" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/>
+      </Symbol>
+      
+      <Symbol id="star" viewBox="0 0 24 24">
+        <Path fill="currentColor" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.46,13.97L5.82,21L12,17.27Z"/>
+      </Symbol>
+    </Defs>
+  </Svg>
+);
+
+export default IconsSprite;

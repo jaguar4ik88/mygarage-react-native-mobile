@@ -1,0 +1,17 @@
+{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "mygarage-temp"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789:android:abcdef123456",
+        "android_client_info": {
+          "package_name": "com.mygarage.app"
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
