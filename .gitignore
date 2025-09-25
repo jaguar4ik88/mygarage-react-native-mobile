@@ -112,9 +112,12 @@ web-build/
 # EAS Build
 eas.json.bak
 
-# Firebase
+# Firebase - конфигурационные файлы с чувствительными данными
 google-services.json
 GoogleService-Info.plist
+android/app/google-services.json
+ios/GoogleService-Info.plist
+ios/myGarage/GoogleService-Info.plist
 
 # Keystore files
 *.keystore
