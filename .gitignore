@@ -137,6 +137,10 @@ Flipper-*
 /coverage
 *.lcov
 
+# APK files
+apk/
+*.apk
+
 # Logs
 logs
 *.log
