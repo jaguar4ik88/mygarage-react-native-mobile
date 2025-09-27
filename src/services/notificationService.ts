@@ -18,6 +18,7 @@ Notifications.setNotificationHandler({
 
 class NotificationService {
   private isInitialized = false;
+  private onReminderStatusUpdate: ((reminderId: number, isActive: boolean) => void) | null = null;
 
   async initialize() {
     if (this.isInitialized) return;
@@ -60,6 +61,11 @@ class NotificationService {
     try {
       await this.initialize();
 
+      // Не планируем уведомления для неактивных напоминаний
+      if (!reminder.is_active) {
+        return;
+      }
+
       const notificationId = `reminder_${reminder.id}`;
       const rawDate = String(reminder.next_service_date || '');
       let triggerDate: Date;
@@ -74,7 +80,8 @@ class NotificationService {
       // Safeguard: if computed time is in the past, fire shortly to avoid missing it
       const now = new Date();
       if (isNaN(triggerDate.getTime()) || triggerDate.getTime() <= now.getTime()) {
-        triggerDate = new Date(now.getTime() + 5000);
+        // Если дата в прошлом или сегодня, показываем уведомление через 1 секунду
+        triggerDate = new Date(now.getTime() + 1000);
       }
 
       // Cancel existing notification for this reminder
@@ -83,8 +90,8 @@ class NotificationService {
       // Schedule new notification
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Service Reminder',
-          body: `${reminder.title} - ${reminder.next_service_mileage.toLocaleString()} km`,
+          title: 'MyGarage Reminder',
+          body: `${reminder.title} - ${reminder.description}`,
           data: {
             reminderId: reminder.id,
             type: 'reminder',
@@ -125,16 +132,8 @@ class NotificationService {
         await Notifications.cancelScheduledNotificationAsync(notification.identifier);
       }
 
-      // Schedule notifications for active reminders OR already due ones
-      const nowTs = Date.now();
-      const toSchedule = reminders.filter(reminder => {
-        if (reminder.is_active) return true;
-        const raw = String(reminder.next_service_date || '');
-        const dueTs = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? new Date(raw + 'T09:00:00').getTime()
-          : new Date(raw).getTime();
-        return !isNaN(dueTs) && dueTs <= nowTs; // schedule immediately for overdue
-      });
+      // Schedule notifications only for active reminders
+      const toSchedule = reminders.filter(reminder => reminder.is_active);
 
       for (const reminder of toSchedule) {
         await this.scheduleReminderNotification(reminder);
@@ -191,6 +190,29 @@ class NotificationService {
   // Handle notification received while app is in foreground
   addNotificationReceivedListener(listener: (notification: Notifications.Notification) => void) {
     return Notifications.addNotificationReceivedListener(listener);
+  }
+
+  // Set callback for reminder status updates
+  setReminderStatusUpdateCallback(callback: (reminderId: number, isActive: boolean) => void) {
+    this.onReminderStatusUpdate = callback;
+  }
+
+  // Mark reminder as inactive after notification is sent
+  async markReminderAsInactive(reminderId: number) {
+    try {
+      // Импортируем ApiService динамически, чтобы избежать циклических зависимостей
+      const { default: ApiService } = await import('./api');
+      
+      // Отправляем запрос на обновление статуса напоминания
+      await ApiService.updateReminder(reminderId, { is_active: false });
+      
+      // Уведомляем UI об изменении статуса
+      if (this.onReminderStatusUpdate) {
+        this.onReminderStatusUpdate(reminderId, false);
+      }
+    } catch (error) {
+      console.error('Error marking reminder as inactive:', error);
+    }
   }
 }
 

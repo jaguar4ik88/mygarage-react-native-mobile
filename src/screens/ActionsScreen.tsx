@@ -21,6 +21,7 @@ interface ActionsScreenProps {
   onNavigateToSTO: () => void;
   onNavigateToFamilyGarage: () => void;
   onNavigateToLocation: () => void;
+  onNavigateToReports: () => void;
 }
 
 const ActionsScreen: React.FC<ActionsScreenProps> = ({
@@ -28,6 +29,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
   onNavigateToSTO,
   onNavigateToFamilyGarage,
   onNavigateToLocation,
+  onNavigateToReports,
 }) => {
   const { t } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
@@ -65,6 +67,14 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       icon: 'sto',
       color: '#06b6d4',
       onPress: onNavigateToSTO,
+    },
+    {
+      id: 'statistics',
+      title: t('actions.statistics'),
+      description: t('actions.statisticsDescription'),
+      icon: 'pie-chart',
+      color: '#10b981',
+      onPress: onNavigateToReports,
     },
     {
       id: 'manuals',

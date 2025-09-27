@@ -14,6 +14,7 @@ import RemindersScreen from '../screens/RemindersScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import ActionsScreen from '../screens/ActionsScreen';
 import STOScreen from '../screens/STOScreen';
+import ReportsScreen from '../screens/ReportsScreen';
 
 const Tab = createBottomTabNavigator<RootStackParamList>();
 const Stack = createNativeStackNavigator();
@@ -154,7 +155,12 @@ const HistoryStackScreen: React.FC = () => {
         headerTitleAlign: 'center',
       }}
     >
-      <Stack.Screen name="HistoryRoot" component={HistoryScreen} options={{ title: t('history.title') }} />
+      <Stack.Screen name="HistoryRoot" options={{ title: t('history.title') }}>
+        {({ navigation }) => <HistoryScreen navigation={navigation} />}
+      </Stack.Screen>
+      <Stack.Screen name="Reports" options={{ title: t('reports.title') }}>
+        {() => <ReportsScreen />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 };
@@ -181,6 +187,10 @@ const ActionsStackScreen: React.FC = () => {
               // Navigate to STO screen
               navigation.navigate('STO');
             }}
+            onNavigateToReports={() => {
+              // Navigate to Reports screen in Actions stack
+              navigation.navigate('Reports');
+            }}
             onNavigateToFamilyGarage={() => {}}
             onNavigateToLocation={() => {}}
           />
@@ -188,6 +198,9 @@ const ActionsStackScreen: React.FC = () => {
       </Stack.Screen>
       <Stack.Screen name="STO" options={{ title: t('navigation.sto') }}>
         {() => <STOScreen />}
+      </Stack.Screen>
+      <Stack.Screen name="Reports" options={{ title: t('reports.title') }}>
+        {() => <ReportsScreen />}
       </Stack.Screen>
     </Stack.Navigator>
   );

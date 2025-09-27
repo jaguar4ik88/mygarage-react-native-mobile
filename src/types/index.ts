@@ -24,9 +24,11 @@ export interface Vehicle {
 export interface Reminder {
   id: number;
   user_id: number;
+  vehicle_id: number;
   type: 'oil' | 'filters' | 'tires' | 'brakes' | 'coolant' | 'inspection' | 'timing_belt' | 'transmission' | 'battery' | 'engine' | 'electrical' | 'suspension' | 'other';
   title: string;
   description: string;
+  last_service_date?: string;
   next_service_date: string;
   is_active: boolean;
   created_at: string;
@@ -51,9 +53,14 @@ export interface ServiceHistory {
   id: number;
   vehicle_id: number;
   expense_type_id?: number;
+  // Some payloads may include slug/name; keep optional for compatibility
+  type?: string;
   description: string;
   cost: number;
   service_date: string;
+  // Backward compatibility aliases
+  amount?: number;
+  date?: string;
   station_name?: string;
   created_at: string;
   updated_at: string;
@@ -100,6 +107,7 @@ export type RootStackParamList = {
   Reminders: undefined;
   STO: undefined;
   History: undefined;
+  Reports: undefined;
   Actions: undefined;
   Profile: undefined;
 };

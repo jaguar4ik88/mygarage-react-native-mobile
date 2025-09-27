@@ -441,9 +441,11 @@ class ApiService {
         const offlineReminder: Reminder = {
           id: Date.now(),
           user_id: userId,
+          vehicle_id: reminder.vehicle_id || 0,
           type: reminder.type || 'other',
           title: reminder.title || '',
           description: reminder.description || '',
+          last_service_date: reminder.last_service_date,
           next_service_date: reminder.next_service_date || new Date().toISOString(),
           is_active: reminder.is_active ?? true,
           created_at: new Date().toISOString(),

@@ -123,7 +123,7 @@ const Icon: React.FC<IconProps> = ({
       'lock': { component: MaterialIcons, iconName: 'lock' },
       'unlock': { component: MaterialIcons, iconName: 'lock-open' },
       'wifi': { component: MaterialIcons, iconName: 'wifi' },
-      'battery': { component: MaterialIcons, iconName: 'battery-full' },
+      'battery-icon': { component: MaterialIcons, iconName: 'battery-full' },
       'signal': { component: MaterialIcons, iconName: 'signal-cellular-4-bar' },
       'wrench': { component: MaterialIcons, iconName: 'build' },
       'tool': { component: MaterialIcons, iconName: 'build' },
@@ -220,6 +220,32 @@ const Icon: React.FC<IconProps> = ({
       'wind': { component: MaterialIcons, iconName: 'air' },
       'zoom-in': { component: MaterialIcons, iconName: 'zoom-in' },
       'zoom-out': { component: MaterialIcons, iconName: 'zoom-out' },
+      
+      // Reminder type icons (from backend seeder)
+      'oil-barrel': { component: MaterialIcons, iconName: 'local-gas-station' },
+      'filter-alt': { component: MaterialIcons, iconName: 'filter-alt' },
+      'tire-repair': { component: MaterialIcons, iconName: 'tire-repair' },
+      'car-repair': { component: MaterialIcons, iconName: 'build' },
+      'water-drop': { component: MaterialIcons, iconName: 'water-drop' },
+      'battery-full': { component: MaterialIcons, iconName: 'battery-full' },
+      'engineering': { component: MaterialIcons, iconName: 'engineering' },
+      'electrical-services': { component: MaterialIcons, iconName: 'electrical-services' },
+      'car-crash': { component: MaterialIcons, iconName: 'car-crash' },
+      
+      // Reminder type keys (from Reminder interface)
+      'oil': { component: MaterialIcons, iconName: 'local-gas-station' },
+      'filters': { component: MaterialIcons, iconName: 'filter-alt' },
+      'tires': { component: MaterialIcons, iconName: 'tire-repair' },
+      'brakes': { component: MaterialIcons, iconName: 'build' },
+      'coolant': { component: MaterialIcons, iconName: 'water-drop' },
+      'inspection': { component: MaterialIcons, iconName: 'search' },
+      'timing_belt': { component: MaterialIcons, iconName: 'settings' },
+      'transmission': { component: MaterialIcons, iconName: 'settings' },
+      'battery': { component: MaterialIcons, iconName: 'battery-full' },
+      'engine': { component: MaterialIcons, iconName: 'engineering' },
+      'electrical': { component: MaterialIcons, iconName: 'electrical-services' },
+      'suspension': { component: MaterialIcons, iconName: 'car-crash' },
+      'other': { component: MaterialIcons, iconName: 'build' },
     };
     
     return iconMap[iconName] || { component: MaterialIcons, iconName: 'info' };

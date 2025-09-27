@@ -18,6 +18,7 @@ import Icon from './Icon';
 import DateInput from './DateInput';
 import { COLORS, SPACING } from '../constants';
 import ApiService from '../services/api';
+import NotificationService from '../services/notificationService';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -76,6 +77,15 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
     }
   }, [editingReminder]);
 
+  // Update title when type changes (for new reminders)
+  useEffect(() => {
+    if (!editingReminder && selectedType) {
+      // Set title to the translated type name for new reminders
+      const typeTitle = t(`reminders.types.${selectedType}`);
+      setTitle(typeTitle);
+    }
+  }, [selectedType, editingReminder, t]);
+
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert(t('common.error'), t('addReminder.enterTitle'));
@@ -103,13 +113,20 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
         return;
       }
 
+      let createdReminder: Reminder;
+      
       if (editingReminder) {
         // Редактирование существующего напоминания
-        await ApiService.updateReminder(editingReminder.id, reminderData);
+        createdReminder = await ApiService.updateReminder(editingReminder.id, reminderData);
+        // Отменяем старое уведомление
+        await NotificationService.cancelReminderNotification(editingReminder.id);
       } else {
         // Создание нового напоминания
-        await ApiService.createReminder(userId, reminderData);
+        createdReminder = await ApiService.createReminder(userId, reminderData);
       }
+
+      // Планируем уведомление для напоминания
+      await NotificationService.scheduleReminderNotification(createdReminder);
 
       onReminderAdded();
       onClose();

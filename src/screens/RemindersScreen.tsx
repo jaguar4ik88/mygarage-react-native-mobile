@@ -23,6 +23,8 @@ import ApiService from '../services/api';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import Analytics from '../services/analyticsService';
+import NotificationService from '../services/notificationService';
+import FeatureGate from '../components/FeatureGate';
 
 interface RemindersScreenProps {}
 
@@ -37,6 +39,9 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
 
   useEffect(() => {
     loadData();
+    
+    // Устанавливаем колбэк для обновления статуса напоминаний
+    NotificationService.setReminderStatusUpdateCallback(updateReminderStatus);
   }, []);
 
   const loadData = async () => {
@@ -48,13 +53,30 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
       
       // Load reminders
       const data = await ApiService.getReminders(user.id);
+      
+      
+      // Бэкенд уже деактивирует просроченные напоминания и сортирует их
       setReminders(data);
+      
+      // Планируем уведомления для всех напоминаний
+      await NotificationService.scheduleAllReminders(data);
     } catch (error) {
       console.error('Error loading data:', error);
       Alert.alert(t('reminders.error'), t('reminders.failedToLoadReminders'));
     } finally {
       setLoading(false);
     }
+  };
+
+  // Функция для обновления статуса напоминания
+  const updateReminderStatus = (reminderId: number, isActive: boolean) => {
+    setReminders(prevReminders => 
+      prevReminders.map(reminder => 
+        reminder.id === reminderId 
+          ? { ...reminder, is_active: isActive }
+          : reminder
+      )
+    );
   };
 
   const loadReminders = async () => {
@@ -64,6 +86,9 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
       setLoading(true);
       const data = await ApiService.getReminders(userId);
       setReminders(data);
+      
+      // Планируем уведомления для всех напоминаний
+      await NotificationService.scheduleAllReminders(data);
     } catch (error) {
       console.error('Error loading reminders:', error);
       Alert.alert(t('reminders.error'), t('reminders.failedToLoadReminders'));
@@ -77,6 +102,7 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
     await loadData();
     setRefreshing(false);
   };
+
 
   const handleDeleteReminder = async (reminderId: number) => {
     Alert.alert(
@@ -103,6 +129,20 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
   };
 
   const handleAddReminder = () => {
+    // Check reminder limit for free plan
+    if (reminders.length >= 5 && userId) {
+      // This would be replaced with actual user plan check
+      Alert.alert(
+        t('subscription.upgradeRequired'),
+        'Бесплатный план позволяет создать только 5 напоминаний. Обновитесь до Pro для неограниченного количества.',
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: 'Обновить', onPress: () => {/* Navigate to subscription screen */} }
+        ]
+      );
+      return;
+    }
+    
     setEditingReminder(null);
     setIsModalOpen(true);
   };
@@ -215,12 +255,19 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
                       <View style={styles.reminderHeader}>
                         <View style={styles.reminderInfo}>
                           <View style={styles.reminderTitleRow}>
-                            <Text style={[
-                              styles.reminderTitle,
-                              deriveStatus(reminder) === 'completed' && styles.completedTitle
-                            ]}>
-                              {t(`reminders.types.${reminder.type}`) || reminder.title}
-                            </Text>
+                            <View style={styles.reminderTitleWithIcon}>
+                              <Icon 
+                                name={reminder.type} 
+                                size={20} 
+                                color={deriveStatus(reminder) === 'completed' ? COLORS.textMuted : COLORS.accent} 
+                              />
+                              <Text style={[
+                                styles.reminderTitle,
+                                deriveStatus(reminder) === 'completed' && styles.completedTitle
+                              ]}>
+                                {reminder.title}
+                              </Text>
+                            </View>
                           </View>
                           <Text style={[
                             styles.reminderDescription,
@@ -341,6 +388,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: SPACING.xs,
+  },
+  reminderTitleWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   urgentBadge: {
     backgroundColor: COLORS.error,

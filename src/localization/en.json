@@ -23,6 +23,7 @@
     "unexpectedError": "An unexpected error occurred. Try restarting the app.",
     "tryAgain": "Try again",
     "all": "All",
+    "locale": "en",
     "comingSoon": "Coming soon",
     "comingSoonDescription": "will be available in upcoming updates"
   },
@@ -49,7 +50,7 @@
   "addCar": {
     "title": "Add Vehicle",
     "methodVin": "By VIN",
-    "methodEngine": "By Engine",
+    "methodEngine": "By Maker",
     "methodManual": "Manual",
     "vin": "VIN Code",
     "decodeVin": "Decode VIN",
@@ -382,6 +383,17 @@
     "quickStats": "Quick Statistics",
     "activeReminders": "Active reminders",
     "serviceRecords": "Service records",
-    "vehicles": "Vehicles"
+    "vehicles": "Vehicles",
+    "statistics": "Statistics",
+    "statisticsDescription": "Expense analysis and service statistics"
+  },
+  "reports": {
+    "title": "Reports",
+    "months": "Months",
+    "years": "Years",
+    "averagePer": "Average per",
+    "month": "month",
+    "year": "year",
+    "totalExpenses": "Total expenses"
   }
 }

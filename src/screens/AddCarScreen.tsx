@@ -54,7 +54,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
     year: '',
     maker: '',
     model: '',
-    engine: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [makers, setMakers] = useState<string[]>([]);
@@ -222,7 +221,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
         if (!manualForm.year) newErrors.year = t('addCar.errors.yearRequired');
         if (!manualForm.maker) newErrors.make = t('addCar.errors.makeRequired');
         if (!manualForm.model) newErrors.model = t('addCar.errors.modelRequired');
-        if (!manualForm.engine) newErrors.engine = t('addCar.errors.engineRequired');
       }
     }
 
@@ -281,7 +279,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
             year: parseInt(manualForm.year),
             make: manualForm.maker,
             model: manualForm.model,
-            engine_type: manualForm.engine,
             mileage: parseInt(formData.mileage),
           };
         }
@@ -513,15 +510,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                 onFocus={() => console.log('manual model focus')}
               />
               <Input
-                label={t('addCar.engine')}
-                value={manualForm.engine}
-                onChangeText={(value) => setManualForm(prev => ({ ...prev, engine: value }))}
-                error={errors.engine}
-                editable={true}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-              <Input
                 label={t('addCar.year')}
                 value={manualForm.year}
                 onChangeText={(value) => handleYearChange(value)}
@@ -616,7 +604,9 @@ const styles = StyleSheet.create({
   },
   methodSelector: {
     flexDirection: 'row',
-    margin: SPACING.lg,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
     backgroundColor: COLORS.card,
     borderRadius: 8,
     padding: 4,
@@ -638,7 +628,9 @@ const styles = StyleSheet.create({
     color: COLORS.background,
   },
   form: {
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xs,
+    paddingBottom: SPACING.lg,
   },
   dropdownContainer: {
     marginBottom: SPACING.lg,

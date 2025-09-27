@@ -5,6 +5,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Font from 'expo-font';
 import AppNavigator from './src/navigation/AppNavigator';
 import NotificationService from './src/services/notificationService';
+import './src/i18n';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
@@ -12,24 +13,31 @@ import LoadingSpinner from './src/components/LoadingSpinner';
 import ApiErrorBanner from './src/components/ApiErrorBanner';
 import { COLORS } from './src/constants';
 import { getAnalytics, setAnalyticsCollectionEnabled } from '@react-native-firebase/analytics';
+import { initializeApp, getApps } from '@react-native-firebase/app';
 
 const AppContent: React.FC = () => {
   const { isDark } = useTheme();
 
   useEffect(() => {
-    // By default, collection is disabled via app.json plugin config.
-    // You can enable it after obtaining user consent.
-    const enableAnalyticsIfConsented = async () => {
+    // Initialize Firebase Analytics
+    const initializeAnalytics = async () => {
       try {
-        // TODO: replace with real consent state from settings/profile
-        const userConsented = true;
+        // Check if Firebase is already initialized
+        if (getApps().length === 0) {
+          console.log('Firebase not initialized, skipping analytics');
+          return;
+        }
+        
+        // Get analytics instance and enable collection
         const analytics = getAnalytics();
-        await setAnalyticsCollectionEnabled(analytics, !!userConsented);
+        await setAnalyticsCollectionEnabled(analytics, true);
+        console.log('Firebase Analytics initialized successfully');
       } catch (e) {
-        console.warn('Failed to set analytics collection state', e);
+        console.warn('Failed to initialize Firebase Analytics:', e);
       }
     };
-    enableAnalyticsIfConsented();
+    
+    initializeAnalytics();
   }, []);
 
   return (
@@ -69,6 +77,48 @@ export default function App() {
 
     // Initialize notification service
     NotificationService.initialize();
+
+    // Set up notification listeners
+    const setupNotificationListeners = () => {
+      // Handle notification received while app is in foreground
+      const notificationListener = NotificationService.addNotificationReceivedListener(
+        (notification) => {
+          // If it's a reminder notification, mark it as inactive
+          if (notification.request.content.data?.type === 'reminder' && 
+              notification.request.content.data?.reminderId) {
+            const reminderId = Number(notification.request.content.data.reminderId);
+            if (!isNaN(reminderId)) {
+              NotificationService.markReminderAsInactive(reminderId);
+            }
+          }
+        }
+      );
+
+      // Handle notification response (when user taps on notification)
+      const responseListener = NotificationService.addNotificationResponseListener(
+        (response) => {
+          // If it's a reminder notification, mark it as inactive
+          if (response.notification.request.content.data?.type === 'reminder' && 
+              response.notification.request.content.data?.reminderId) {
+            const reminderId = Number(response.notification.request.content.data.reminderId);
+            if (!isNaN(reminderId)) {
+              NotificationService.markReminderAsInactive(reminderId);
+            }
+          }
+        }
+      );
+
+      // Return cleanup function
+      return () => {
+        notificationListener.remove();
+        responseListener.remove();
+      };
+    };
+
+    const cleanup = setupNotificationListeners();
+
+    // Cleanup on unmount
+    return cleanup;
   }, []);
 
   if (!fontsLoaded) {

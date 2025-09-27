@@ -12,7 +12,7 @@
 
 ### 2. iOS
 1. Скачайте `GoogleService-Info.plist` из Firebase Console
-2. Скопируйте файл в корень проекта как `GoogleService-Info.plist`
+2. Скопируйте файл в `ios/myGarage/GoogleService-Info.plist`
 3. Убедитесь, что файл добавлен в `.gitignore`
 
 ## Шаблоны файлов
