@@ -19,11 +19,23 @@ Notifications.setNotificationHandler({
 class NotificationService {
   private isInitialized = false;
   private onReminderStatusUpdate: ((reminderId: number, isActive: boolean) => void) | null = null;
+  private navigationRef: any = null;
+
+  async getPermissions() {
+    return await Notifications.getPermissionsAsync();
+  }
 
   async initialize() {
     if (this.isInitialized) return;
 
     try {
+
+      // Check if device supports notifications
+      if (!Device.isDevice) {
+        console.warn('Must use physical device for Push Notifications');
+        return false;
+      }
+
       // Request permissions
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
@@ -79,9 +91,13 @@ class NotificationService {
 
       // Safeguard: if computed time is in the past, fire shortly to avoid missing it
       const now = new Date();
+      
       if (isNaN(triggerDate.getTime()) || triggerDate.getTime() <= now.getTime()) {
         // Если дата в прошлом или сегодня, показываем уведомление через 1 секунду
         triggerDate = new Date(now.getTime() + 1000);
+        
+        // Для прошедших дат НЕ деактивируем сразу - ждем получения уведомления
+        // Деактивация произойдет в App.tsx при получении/тапе на уведомление
       }
 
       // Cancel existing notification for this reminder
@@ -105,7 +121,7 @@ class NotificationService {
       });
 
     } catch (error) {
-      console.error('Error scheduling notification:', error);
+      console.error(`Error scheduling notification for reminder ${reminder.id}:`, error);
     }
   }
 
@@ -132,10 +148,16 @@ class NotificationService {
         await Notifications.cancelScheduledNotificationAsync(notification.identifier);
       }
 
-      // Schedule notifications only for active reminders
-      const toSchedule = reminders.filter(reminder => reminder.is_active);
-
-      for (const reminder of toSchedule) {
+      // Дедупликация по ID
+      const uniqueReminders = reminders.reduce((acc, reminder) => {
+        if (!acc.find(r => r.id === reminder.id)) {
+          acc.push(reminder);
+        }
+        return acc;
+      }, [] as Reminder[]);
+      
+      // Schedule notifications for all reminders (including past ones for immediate display)
+      for (const reminder of uniqueReminders) {
         await this.scheduleReminderNotification(reminder);
       }
 
@@ -161,26 +183,6 @@ class NotificationService {
     }
   }
 
-  // Test notification
-  async sendTestNotification() {
-    try {
-      await this.initialize();
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Test Notification',
-          body: 'myGarage is working correctly!',
-          data: { type: 'test' },
-        },
-        trigger: { 
-          type: SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 1 
-        },
-      });
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-    }
-  }
 
   // Handle notification response
   addNotificationResponseListener(listener: (response: Notifications.NotificationResponse) => void) {
@@ -195,6 +197,31 @@ class NotificationService {
   // Set callback for reminder status updates
   setReminderStatusUpdateCallback(callback: (reminderId: number, isActive: boolean) => void) {
     this.onReminderStatusUpdate = callback;
+  }
+
+  // Set navigation reference
+  setNavigationRef(ref: any) {
+    this.navigationRef = ref;
+  }
+
+  // Navigate to reminders screen
+  navigateToReminders() {
+    if (this.navigationRef) {
+      try {
+        // Try to navigate to the reminders screen
+        this.navigationRef.navigate('Reminders');
+      } catch (error) {
+        console.warn('Failed to navigate to reminders screen:', error);
+        // Fallback: try to navigate to main tab and then reminders
+        try {
+          this.navigationRef.navigate('MainTabs', { screen: 'Reminders' });
+        } catch (fallbackError) {
+          console.warn('Fallback navigation also failed:', fallbackError);
+        }
+      }
+    } else {
+      console.warn('Navigation ref not set in NotificationService');
+    }
   }
 
   // Mark reminder as inactive after notification is sent

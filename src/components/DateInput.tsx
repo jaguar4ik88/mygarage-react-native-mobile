@@ -37,8 +37,8 @@ const DateInput: React.FC<DateInputProps> = ({
       if (!isNaN(parsed.getTime())) return parsed;
     }
     const now = new Date();
-    // Default to the same day one year back to avoid 1970
-    return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    // Default to current date + 7 days
+    return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   };
   const [tempDate, setTempDate] = useState(computeInitialDate());
 

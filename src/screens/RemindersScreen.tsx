@@ -39,10 +39,27 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
 
   useEffect(() => {
     loadData();
+    checkNotificationPermissions();
     
     // Устанавливаем колбэк для обновления статуса напоминаний
     NotificationService.setReminderStatusUpdateCallback(updateReminderStatus);
   }, []);
+
+  const checkNotificationPermissions = async () => {
+    try {
+      const { status } = await NotificationService.getPermissions();
+      console.log('Notification permissions status:', status);
+      if (status !== 'granted') {
+        Alert.alert(
+          'Уведомления отключены',
+          'Для получения напоминаний включите уведомления в настройках приложения',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error checking notification permissions:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -58,8 +75,13 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
       // Бэкенд уже деактивирует просроченные напоминания и сортирует их
       setReminders(data);
       
-      // Планируем уведомления для всех напоминаний
-      await NotificationService.scheduleAllReminders(data);
+      // Планируем уведомления для всех напоминаний (только если сервис инициализирован)
+      try {
+        await NotificationService.scheduleAllReminders(data);
+      } catch (notificationError) {
+        console.warn('Failed to schedule notifications:', notificationError);
+        // Не блокируем загрузку данных из-за проблем с уведомлениями
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       Alert.alert(t('reminders.error'), t('reminders.failedToLoadReminders'));
@@ -156,6 +178,7 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
     Analytics.track('reminder_add');
     loadData();
   };
+
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);

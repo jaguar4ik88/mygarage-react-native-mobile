@@ -12,15 +12,6 @@ class ApiService {
 
   constructor() {
     this.baseURL = API_BASE_URL;
-    console.log('🌐 ApiService initialized with baseURL:', this.baseURL);
-    console.log('🔑 API_KEY available:', !!API_KEY);
-    try {
-      const masked = API_KEY ? `${API_KEY.slice(0, 4)}…(${API_KEY.length})` : 'none';
-      console.log('🔍 API_KEY (masked):', masked);
-    } catch {}
-    console.log('🔍 API_BASE_URL value:', API_BASE_URL);
-    console.log('🔍 Process env API_BASE_URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
-    console.log('🔍 Process env API_KEY present:', !!process.env.EXPO_PUBLIC_API_KEY);
     this.loadToken();
     
     // Test API connection on Android

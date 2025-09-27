@@ -24,6 +24,7 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to find nearby service stations.",
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate you and protect your personal data.",
+        "UIBackgroundModes": ["background-processing", "background-fetch", "remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSAllowsArbitraryLoadsInWebContent": true,
@@ -51,6 +52,23 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": []
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useModularHeaders": true
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff",
+          "mode": "production"
+        }
+      ]
+    ]
   }
 }

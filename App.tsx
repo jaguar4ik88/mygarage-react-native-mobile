@@ -97,13 +97,17 @@ export default function App() {
       // Handle notification response (when user taps on notification)
       const responseListener = NotificationService.addNotificationResponseListener(
         (response) => {
-          // If it's a reminder notification, mark it as inactive
+          // If it's a reminder notification, mark it as inactive and navigate to reminders
           if (response.notification.request.content.data?.type === 'reminder' && 
               response.notification.request.content.data?.reminderId) {
             const reminderId = Number(response.notification.request.content.data.reminderId);
+            console.log('Marking reminder as inactive (response):', reminderId);
             if (!isNaN(reminderId)) {
               NotificationService.markReminderAsInactive(reminderId);
             }
+            
+            // Navigate to reminders screen
+            NotificationService.navigateToReminders();
           }
         }
       );
