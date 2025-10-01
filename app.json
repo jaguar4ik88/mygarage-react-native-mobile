@@ -2,7 +2,7 @@
   "expo": {
     "name": "myGarage",
     "slug": "mygarage",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -18,7 +18,7 @@
     "scheme": "mygarage",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mygarage.app",
+      "bundleIdentifier": "uno.mygarage.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "icon": "./assets/icon.png",
       "infoPlist": {
@@ -42,12 +42,15 @@
         "backgroundColor": "#1b1b1f"
       },
       "icon": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher.png",
-      "package": "com.mygarage.app",
+      "package": "uno.mygarage.app",
       "googleServicesFile": "./android/app/google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "config": {
+        "googleMobileAdsAppId": ""
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

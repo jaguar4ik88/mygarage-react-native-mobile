@@ -93,11 +93,29 @@ class NotificationService {
       const now = new Date();
       
       if (isNaN(triggerDate.getTime()) || triggerDate.getTime() <= now.getTime()) {
-        // Если дата в прошлом или сегодня, показываем уведомление через 1 секунду
-        triggerDate = new Date(now.getTime() + 1000);
+        // Для прошедших дат сразу деактивируем напоминание
+        await this.markReminderAsInactive(reminder.id);
         
-        // Для прошедших дат НЕ деактивируем сразу - ждем получения уведомления
-        // Деактивация произойдет в App.tsx при получении/тапе на уведомление
+        // На iOS нельзя планировать уведомления в прошлом, поэтому показываем немедленно
+        if (Platform.OS === 'ios') {
+          // Показываем уведомление немедленно без планирования
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'MyGarage Reminder',
+              body: `${reminder.title} - ${reminder.description}`,
+              data: {
+                reminderId: reminder.id,
+                type: 'reminder',
+              },
+            },
+            trigger: null, // Немедленное уведомление
+            identifier: notificationId,
+          });
+          return; // Не планируем повторное уведомление
+        } else {
+          // На Android планируем через 1 секунду
+          triggerDate = new Date(now.getTime() + 1000);
+        }
       }
 
       // Cancel existing notification for this reminder

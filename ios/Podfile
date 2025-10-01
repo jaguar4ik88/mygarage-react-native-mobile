@@ -48,5 +48,19 @@ target 'myGarage' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
+    
+    # Настройки для генерации dSYM файлов
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Включаем генерацию dSYM для всех конфигураций
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+        # Включаем генерацию символов отладки
+        config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+        # Включаем оптимизацию для релизной сборки
+        if config.name == 'Release'
+          config.build_settings['GCC_OPTIMIZATION_LEVEL'] = '3'
+        end
+      end
+    end
   end
 end

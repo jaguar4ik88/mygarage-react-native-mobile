@@ -101,7 +101,6 @@ export default function App() {
           if (response.notification.request.content.data?.type === 'reminder' && 
               response.notification.request.content.data?.reminderId) {
             const reminderId = Number(response.notification.request.content.data.reminderId);
-            console.log('Marking reminder as inactive (response):', reminderId);
             if (!isNaN(reminderId)) {
               NotificationService.markReminderAsInactive(reminderId);
             }
