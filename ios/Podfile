@@ -12,12 +12,9 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 
 prepare_react_native_project!
 
-# Enable modular headers globally for Firebase compatibility
-use_modular_headers!
-
 target 'myGarage' do
   use_expo_modules!
-
+  use_modular_headers!
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else
@@ -51,13 +48,17 @@ target 'myGarage' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
-
-    # Ensure modular headers for Firebase dependencies
-    installer.pods_project.targets.each do |t|
-      if t.name.start_with?('Firebase') || t.name.start_with?('RNFB') || t.name == 'GoogleUtilities'
-        t.build_configurations.each do |cfg|
-          cfg.build_settings['DEFINES_MODULE'] = 'YES'
-          cfg.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+    
+    # Настройки для генерации dSYM файлов
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Включаем генерацию dSYM для всех конфигураций
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+        # Включаем генерацию символов отладки
+        config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+        # Включаем оптимизацию для релизной сборки
+        if config.name == 'Release'
+          config.build_settings['GCC_OPTIMIZATION_LEVEL'] = '3'
         end
       end
     end

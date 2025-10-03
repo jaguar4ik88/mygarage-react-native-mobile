@@ -21,6 +21,7 @@ import BottomTabNavigator from './BottomTabNavigator';
 // Types
 import { RootStackParamList } from '../types';
 import { getAnalytics, logEvent } from '@react-native-firebase/analytics';
+import NotificationService from '../services/notificationService';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -33,6 +34,13 @@ const AppNavigator: React.FC = () => {
   useEffect(() => {
     checkAuthStatus();
   }, []);
+
+  useEffect(() => {
+    // Set navigation ref in NotificationService when it's available
+    if (navigationRef.current) {
+      NotificationService.setNavigationRef(navigationRef.current);
+    }
+  }, [navigationRef.current]);
 
   const checkAuthStatus = async () => {
     try {

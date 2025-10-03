@@ -19,6 +19,7 @@ import Button from '../components/Button';
 import Icon from '../components/Icon';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
+import NotificationService from '../services/notificationService';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -85,15 +86,17 @@ const AddReminderScreen: React.FC<AddReminderScreenProps> = ({
         title: title.trim(),
         description: description.trim(),
         last_service_date: lastServiceDate || new Date().toISOString(),
-        last_service_mileage: parseInt(lastServiceMileage) || 0,
         next_service_date: nextServiceDate || new Date().toISOString(),
-        next_service_mileage: parseInt(nextServiceMileage) || 0,
         is_active: true,
       };
 
       console.log('Sending reminder data:', reminderData);
 
-      await ApiService.createReminder(userId, reminderData);
+      const createdReminder = await ApiService.createReminder(userId, reminderData);
+      
+      // Планируем уведомление для напоминания
+      await NotificationService.scheduleReminderNotification(createdReminder);
+      
       onReminderAdded();
       onClose();
     } catch (error) {

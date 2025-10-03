@@ -12,15 +12,6 @@ class ApiService {
 
   constructor() {
     this.baseURL = API_BASE_URL;
-    console.log('🌐 ApiService initialized with baseURL:', this.baseURL);
-    console.log('🔑 API_KEY available:', !!API_KEY);
-    try {
-      const masked = API_KEY ? `${API_KEY.slice(0, 4)}…(${API_KEY.length})` : 'none';
-      console.log('🔍 API_KEY (masked):', masked);
-    } catch {}
-    console.log('🔍 API_BASE_URL value:', API_BASE_URL);
-    console.log('🔍 Process env API_BASE_URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
-    console.log('🔍 Process env API_KEY present:', !!process.env.EXPO_PUBLIC_API_KEY);
     this.loadToken();
     
     // Test API connection on Android
@@ -441,9 +432,11 @@ class ApiService {
         const offlineReminder: Reminder = {
           id: Date.now(),
           user_id: userId,
+          vehicle_id: reminder.vehicle_id || 0,
           type: reminder.type || 'other',
           title: reminder.title || '',
           description: reminder.description || '',
+          last_service_date: reminder.last_service_date,
           next_service_date: reminder.next_service_date || new Date().toISOString(),
           is_active: reminder.is_active ?? true,
           created_at: new Date().toISOString(),

@@ -57,15 +57,7 @@ export const API_BASE_URL = resolvedApiBase as string;
 // Do NOT hardcode API keys. Expect it from env; log a warning if missing.
 export const API_KEY = (process.env.EXPO_PUBLIC_API_KEY || '').trim();
 
-// Debug: Log the API URL being used
-console.log('🔧 API Configuration:');
-console.log('  🌍 Environment:', process.env.EXPO_PUBLIC_API_BASE_URL?.includes('mygarage.uno') ? 'PRODUCTION' : 'LOCAL');
-console.log('  Environment variable:', process.env.EXPO_PUBLIC_API_BASE_URL);
-console.log('  API Key variable present:', !!process.env.EXPO_PUBLIC_API_KEY);
-console.log('  ✅ Resolved API URL:', resolvedApiBase);
-console.log('  Platform:', Platform.OS);
-console.log('  Final API_KEY:', API_KEY);
-console.log('  🚨 TIMESTAMP:', new Date().toISOString());
+// API configuration loaded
 
 // Backend switching for development
 export const BACKEND_URLS = {

@@ -65,13 +65,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         const savedPassword = await AsyncStorage.getItem('last_login_password');
         
         if (savedEmail && savedPassword) {
-          const response = await ApiService.login(savedEmail, savedPassword);
-          if (response.token) {
-            await AsyncStorage.setItem('auth_token', response.token);
-            await ApiService.updateToken();
-            await Analytics.track('auth_biometric_success');
-            onAuthSuccess();
-            return;
+          try {
+            const response = await ApiService.login(savedEmail, savedPassword);
+            if (response.token) {
+              await AsyncStorage.setItem('auth_token', response.token);
+              await ApiService.updateToken();
+              await Analytics.track('auth_biometric_success');
+              onAuthSuccess();
+              return;
+            }
+          } catch (error) {
+            console.log('Auto-login failed, clearing saved credentials:', error);
+            // Очищаем недействительные данные
+            await AsyncStorage.removeItem('last_login_email');
+            await AsyncStorage.removeItem('last_login_password');
           }
         }
         

@@ -26,10 +26,13 @@ import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import Analytics from '../services/analyticsService';
 
-const HistoryScreen: React.FC = () => {
+interface HistoryScreenProps {
+  navigation?: any;
+}
+
+const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const { t, language } = useLanguage();
   const [history, setHistory] = useState<ServiceHistory[]>([]);
-  const [filterType, setFilterType] = useState<'all' | string>('all');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -305,18 +308,6 @@ const HistoryScreen: React.FC = () => {
 
   // Removed emoji icon map to comply with project UI policy (no emojis)
 
-  const getTypeTitle = (type: string): string => {
-    const fromServer = expenseTypes.find(et => et.slug === type);
-    if (fromServer) return fromServer.name;
-    const titleMap: Record<string, string> = {
-      maintenance: t('history.recordTypes.maintenance'),
-      repair: t('history.recordTypes.repair'),
-      inspection: t('history.recordTypes.inspection'),
-      fuel: t('history.recordTypes.fuel'),
-    };
-    return titleMap[type] || t('history.other');
-  };
-
   if (loading) {
     return <LoadingSpinner text={t('common.loading')} />;
   }
@@ -329,11 +320,7 @@ const HistoryScreen: React.FC = () => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <FlatList
-          data={history.filter((record) => {
-            if (filterType === 'all') return true;
-            const expenseType = expenseTypes.find(et => et.id === record.expense_type_id);
-            return expenseType?.slug === filterType;
-          })}
+          data={history}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item: record }) => {
             const vehicle = vehicles.find(v => v.id === record.vehicle_id);
@@ -371,7 +358,7 @@ const HistoryScreen: React.FC = () => {
                       numberOfLines={1}
                       ellipsizeMode="tail"
                     >
-                      {t('history.recordType')}: {getTypeTitle(expenseTypes.find(et => et.id === record.expense_type_id)?.slug || '')}
+                      {t('history.recordType')}: {expenseTypes.find(et => et.id === record.expense_type_id)?.name || t('history.other')}
                     </Text>
                     <Text style={styles.recordCost}>{formatCurrency(record.cost)}</Text>
                   </View>
@@ -382,6 +369,11 @@ const HistoryScreen: React.FC = () => {
             <>
               <View style={styles.topActions}>
                 <Button title={t('history.addRecord')} onPress={handleAddRecord} />
+                <Button 
+                  title={t('actions.statistics')} 
+                  onPress={() => navigation?.navigate('Reports')} 
+                  style={styles.statisticsButton}
+                />
               </View>
               <View style={styles.statsContainer}>
                 <Card style={styles.statCard}>
@@ -394,33 +386,6 @@ const HistoryScreen: React.FC = () => {
                 </Card>
               </View>
 
-              <Card style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.text, marginBottom: SPACING.sm }}>{t('advice.filterBySection')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
-                  {(['all', ...expenseTypes.map(et => et.slug)] as string[]).map((typeKey) => {
-                    const isActive = filterType === typeKey;
-                    return (
-                      <TouchableOpacity
-                        key={typeKey}
-                        style={{
-                          paddingHorizontal: SPACING.md,
-                          paddingVertical: SPACING.sm,
-                          marginRight: SPACING.sm,
-                          backgroundColor: isActive ? COLORS.accent : COLORS.surface,
-                          borderRadius: 20,
-                        }}
-                        onPress={() => {
-                          setFilterType(typeKey as 'all' | string);
-                        }}
-                      >
-                        <Text style={{ fontSize: 14, color: isActive ? COLORS.text : COLORS.textSecondary, fontWeight: isActive ? 'bold' as const : 'normal' }}>
-                          {typeKey === 'all' ? t('common.all') : getTypeTitle(typeKey)}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </Card>
             </>
           )}
           ListEmptyComponent={() => (
@@ -580,13 +545,18 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   topActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
+  },
+  statisticsButton: {
+    flex: 1,
   },
   statCard: {
     flex: 1,
     alignItems: 'center',
-    padding: SPACING.md,
+    padding: SPACING.sm,
   },
   statValue: {
     fontSize: 18,

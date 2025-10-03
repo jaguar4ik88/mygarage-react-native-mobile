@@ -23,6 +23,7 @@
     "unexpectedError": "Сталася неочікувана помилка. Спробуйте перезапустити додаток.",
     "tryAgain": "Спробувати знову",
     "all": "Всі",
+    "locale": "uk",
     "comingSoon": "Незабаром",
     "comingSoonDescription": "буде доступно в наступних оновленнях"
   },
@@ -49,7 +50,7 @@
   "addCar": {
     "title": "Додати автомобіль",
     "methodVin": "По VIN",
-    "methodEngine": "За двигуном",
+    "methodEngine": "По Марке",
     "methodManual": "Вручну",
     "vin": "VIN-код",
     "decodeVin": "Декодувати VIN",
@@ -280,7 +281,6 @@
     "contactUs": "Зв'язатися з нами",
     "rateApp": "Оцінити додаток",
     "licenses": "Ліцензії",
-    "privacyPolicy": "Політика конфіденційності",
     "logoutAccount": "Вийти з акаунту",
     "error": "Помилка",
     "failedToLoadProfile": "Не вдалося завантажити дані профілю",
@@ -383,6 +383,17 @@
     "quickStats": "Швидка статистика",
     "activeReminders": "Активних нагадувань",
     "serviceRecords": "Записів сервісу",
-    "vehicles": "Автомобілів"
+    "vehicles": "Автомобілів",
+    "statistics": "Статистика",
+    "statisticsDescription": "Аналіз витрат та статистика обслуговування"
+  },
+  "reports": {
+    "title": "Звіти",
+    "months": "Місяці",
+    "years": "Роки",
+    "averagePer": "Середнє за",
+    "month": "місяць",
+    "year": "рік",
+    "totalExpenses": "Загальні витрати"
   }
 }

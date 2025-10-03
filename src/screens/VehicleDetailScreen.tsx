@@ -77,7 +77,7 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
       ]);
       
       setReminders(remindersData);
-      setServiceHistory(historyData);
+      setServiceHistory(historyData.data || []);
       setReminderTypes(typesData);
     } catch (error) {
       console.error('Error loading vehicle data:', error);
@@ -341,7 +341,7 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
               {serviceHistory.slice(0, 3).map((record, index) => (
                 <View key={record.id} style={styles.historyItem}>
                   <View style={styles.historyInfo}>
-                    <Text style={styles.historyTitle}>{record.title}</Text>
+                    <Text style={styles.historyTitle}>{record.description}</Text>
                     <Text style={styles.historyDate}>
                       {formatDate(record.service_date)}
                     </Text>
