@@ -423,7 +423,7 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                   style={[styles.inputLike, {justifyContent: 'space-between', flexDirection: 'row'}]}
                   onPress={() => openPicker('make')}
                 >
-                  <Text style={styles.dropdownOptionText}>
+                  <Text style={styles.dropdownOptionText} numberOfLines={1}>
                     {engineForm.maker || ''}
                   </Text>
                   <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
@@ -437,7 +437,7 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                   style={[styles.inputLike, {justifyContent: 'space-between', flexDirection: 'row'}]}
                   onPress={() => openPicker('model')}
                 >
-                  <Text style={styles.dropdownOptionText}>
+                  <Text style={styles.dropdownOptionText} numberOfLines={1}>
                     {engineForm.model || ''}
                   </Text>
                   <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
@@ -451,7 +451,7 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                   style={[styles.inputLike, {justifyContent: 'space-between', flexDirection: 'row'}]}
                   onPress={() => openPicker('engine')}
                 >
-                  <Text style={styles.dropdownOptionText}>
+                  <Text style={styles.dropdownOptionText} numberOfLines={1}>
                     {engineForm.engine || ''}
                   </Text>
                   <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
@@ -563,7 +563,7 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                   return (
                     <TouchableOpacity
                       key={idx}
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}
                       onPress={() => {
                         if (picker.type === 'make') handleMakeChangeEngine(label);
                         if (picker.type === 'model') handleModelChangeEngine(label);
@@ -571,8 +571,8 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                         setPicker(prev => ({...prev, visible: false}));
                       }}
                     >
-                      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: COLORS.accent, marginRight: 10, alignItems: 'center', justifyContent: 'center' }}>
-                        {selected && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.accent }} />}
+                      <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: COLORS.accent, marginRight: 10, alignItems: 'center', justifyContent: 'center' }}>
+                        {selected && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.accent }} />}
                       </View>
                       <Text style={{ color: COLORS.text }}>{label}</Text>
                     </TouchableOpacity>
