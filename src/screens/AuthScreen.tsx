@@ -173,11 +173,35 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       await Analytics.track(isLogin ? 'auth_login_failure' : 'auth_register_failure', {
         message: error?.message || 'unknown',
       });
+      
+      // Parse validation errors and show them in the form
+      if (error.message && error.message.includes(':')) {
+        const errorLines = error.message.split('\n');
+        const newErrors: Record<string, string> = {};
+        
+        errorLines.forEach((line: string) => {
+          const [field, message] = line.split(': ');
+          if (field && message) {
+            // Map API field names to form field names
+            const formField = field === 'email' ? 'email' : 
+                            field === 'password' ? 'password' : 
+                            field === 'name' ? 'name' : field;
+            newErrors[formField] = message;
+          }
+        });
+        
+        if (Object.keys(newErrors).length > 0) {
+          setErrors(newErrors);
+          return; // Don't show alert if we set field errors
+        }
+      }
+      
       Alert.alert(t('common.error'), error.message || t('auth.authError'));
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -211,6 +235,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 onChangeText={(value) => handleInputChange('name', value)}
                 error={errors.name}
                 autoCapitalize="words"
+                autoCorrect={false}
+                spellCheck={false}
+                textContentType="name"
               />
             )}
 
@@ -221,6 +248,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               error={errors.email}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              textContentType="emailAddress"
             />
 
             <Input
@@ -229,6 +259,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               onChangeText={(value) => handleInputChange('password', value)}
               error={errors.password}
               secureTextEntry
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
+              textContentType="password"
             />
 
             {!isLogin && (
@@ -238,6 +272,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 onChangeText={(value) => handleInputChange('confirmPassword', value)}
                 error={errors.confirmPassword}
                 secureTextEntry
+                autoCorrect={false}
+                autoCapitalize="none"
+                spellCheck={false}
+                textContentType="password"
               />
             )}
 
@@ -248,9 +286,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               style={styles.submitButton}
             />
 
+
             {isLogin && biometricAvailable && (
               <Button
-                title={`Войти с ${BiometricService.getBiometryDisplayName(biometryType)}`}
+                title={`${t('auth.biometricSignIn')} ${BiometricService.getBiometryDisplayName(biometryType, t)}`}
                 onPress={handleBiometricAuth}
                 loading={loading}
                 variant="outline"

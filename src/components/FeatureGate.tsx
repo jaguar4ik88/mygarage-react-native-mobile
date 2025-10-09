@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   upgradePrompt: {
     margin: SPACING.lg,
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   upgradeButtonText: {
     color: COLORS.background,

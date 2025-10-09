@@ -118,16 +118,30 @@ class BiometricService {
   /**
    * Получает дружественное название типа биометрии
    */
-  getBiometryDisplayName(biometryType?: string): string {
+  getBiometryDisplayName(biometryType?: string, t?: (key: string) => string): string {
+    if (!t) {
+      // Fallback to Russian if no translation function provided
+      switch (biometryType) {
+        case BiometryTypes.TouchID:
+          return 'Touch ID';
+        case BiometryTypes.FaceID:
+          return 'Face ID';
+        case BiometryTypes.Biometrics:
+          return 'отпечатком пальца';
+        default:
+          return 'биометрической аутентификацией';
+      }
+    }
+
     switch (biometryType) {
       case BiometryTypes.TouchID:
-        return 'Touch ID';
+        return t('auth.biometricTypes.touchId');
       case BiometryTypes.FaceID:
-        return 'Face ID';
+        return t('auth.biometricTypes.faceId');
       case BiometryTypes.Biometrics:
-        return 'отпечаток пальца';
+        return t('auth.biometricTypes.fingerprint');
       default:
-        return 'биометрическую аутентификацию';
+        return t('auth.biometricTypes.biometrics');
     }
   }
 }

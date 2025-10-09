@@ -144,6 +144,13 @@ const DateInput: React.FC<DateInputProps> = ({
 const styles = StyleSheet.create({
   container: {
     marginBottom: SPACING.lg,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    padding: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   label: {
     fontSize: 16,
@@ -185,8 +192,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: COLORS.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
     padding: SPACING.lg,
     maxHeight: '50%',
   },

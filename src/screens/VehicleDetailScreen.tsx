@@ -32,6 +32,7 @@ interface VehicleDetailScreenProps {
   onNavigateToManual: () => void;
   onNavigateToHistory: (vehicleId: number) => void;
   onNavigateToSTO: () => void;
+  onNavigateToRecommendations: () => void;
 }
 
 const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
@@ -43,6 +44,7 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
   onNavigateToManual,
   onNavigateToHistory,
   onNavigateToSTO,
+  onNavigateToRecommendations,
 }) => {
   const { t, language } = useLanguage();
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -50,8 +52,9 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
   const [reminderTypes, setReminderTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [editingMileage, setEditingMileage] = useState(false);
   const [newMileage, setNewMileage] = useState(vehicle.mileage.toString());
+  const [editingYear, setEditingYear] = useState(false);
+  const [newYear, setNewYear] = useState(String(vehicle.year || ''));
 
   useEffect(() => {
     loadData();
@@ -92,16 +95,41 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
     setRefreshing(false);
   };
 
-  const handleUpdateMileage = async () => {
+  const handleUpdateYearAndMileage = async () => {
     try {
-      const updatedVehicle = await ApiService.updateVehicle(vehicle.id, {
-        mileage: parseInt(newMileage),
-      });
+      const parsedYear = parseInt(newYear, 10);
+      const parsedMileage = parseInt(newMileage, 10);
+      if (!parsedYear || parsedYear < 1900 || parsedYear > new Date().getFullYear() + 1) {
+        Alert.alert(t('vehicleDetail.error'), t('vehicleDetail.invalidYear') || 'Некорректный год');
+        return;
+      }
+      if (!parsedMileage || parsedMileage < 0) {
+        Alert.alert(t('vehicleDetail.error'), t('vehicleDetail.mileageMustBeNumber') || 'Некорректный пробег');
+        return;
+      }
+      const updatedVehicle = await ApiService.updateVehicle(vehicle.id, { year: parsedYear, mileage: parsedMileage });
       onEditVehicle(updatedVehicle);
-      setEditingMileage(false);
-      Alert.alert(t('vehicleDetail.success'), t('vehicleDetail.mileageUpdated'));
+      await loadData();
+      setEditingYear(false);
+      Alert.alert(t('vehicleDetail.success'), t('vehicleDetail.yearUpdated') || 'Данные обновлены');
     } catch (error) {
-      Alert.alert(t('vehicleDetail.error'), t('vehicleDetail.failedToUpdateMileage'));
+      Alert.alert(t('vehicleDetail.error'), t('vehicleDetail.failedToUpdateYear') || 'Не удалось обновить данные');
+    }
+  };
+
+  const handleUpdateYear = async () => {
+    try {
+      const parsed = parseInt(newYear, 10);
+      if (!parsed || parsed < 1900 || parsed > new Date().getFullYear() + 1) {
+        Alert.alert(t('vehicleDetail.error'), t('vehicleDetail.invalidYear') || 'Некорректный год');
+        return;
+      }
+      const updatedVehicle = await ApiService.updateVehicle(vehicle.id, { year: parsed });
+      onEditVehicle(updatedVehicle);
+      setEditingYear(false);
+      Alert.alert(t('vehicleDetail.success'), t('vehicleDetail.yearUpdated') || 'Год обновлён');
+    } catch (error) {
+      Alert.alert(t('vehicleDetail.error'), t('vehicleDetail.failedToUpdateYear') || 'Не удалось обновить год');
     }
   };
 
@@ -193,7 +221,7 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
             <View style={styles.vehicleHeader}>
               <View style={styles.vehicleInfo}>
                 <Text style={styles.vehicleTitle}>
-                  {vehicle.year} {vehicle.make} {vehicle.model}
+                  {vehicle.year || '—'} {vehicle.make} {vehicle.model}
                 </Text>
                 <Text style={styles.vehicleSubtitle}>
                   {vehicle.engine_type}
@@ -203,55 +231,15 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
                     VIN: {vehicle.vin}
                   </Text>
                 )}
+                <Text style={styles.vehicleSubtitle}>
+                {t('vehicleDetail.currentMileage')} {vehicle.mileage.toLocaleString()} {t('vehicleDetail.kilometers')}
+                </Text>
               </View>
               <View style={styles.vehicleIcon}>
                 <Icon name="car" size={40} color={COLORS.accent} />
               </View>
             </View>
 
-            <View style={styles.mileageSection}>
-              <Text style={styles.sectionTitle}>{t('vehicleDetail.currentMileage')}</Text>
-              {editingMileage ? (
-                <View style={styles.mileageEdit}>
-                  <Input
-                    value={newMileage}
-                    onChangeText={setNewMileage}
-                    keyboardType="numeric"
-                    style={styles.mileageInput}
-                  />
-                  <View style={styles.mileageButtons}>
-                    <Button
-                      title={t('common.save')}
-                      onPress={handleUpdateMileage}
-                      size="small"
-                      style={styles.mileageButton}
-                    />
-                    <Button
-                      title={t('common.cancel')}
-                      onPress={() => {
-                        setEditingMileage(false);
-                        setNewMileage(vehicle.mileage.toString());
-                      }}
-                      variant="outline"
-                      size="small"
-                      style={styles.mileageButton}
-                    />
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.mileageDisplay}>
-                  <Text style={styles.mileageValue}>
-                    {vehicle.mileage.toLocaleString()} {t('vehicleDetail.kilometers')}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setEditingMileage(true)}
-                    style={styles.editMileageButton}
-                  >
-                    <Icon name="edit" size={16} color={COLORS.accent} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
           </Card>
         </AnimatedView>
 
@@ -280,59 +268,67 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
           <Card style={styles.actionsCard}>
             <Text style={styles.sectionTitle}>{t('vehicleDetail.actions')}</Text>
             <View style={styles.actionsGrid}>
+              {/* Full-width Recommendations button */}
               <Button
-                title={t('navigation.advice')}
-                onPress={() => onNavigateToManual()}
+                title={t('navigation.recommendations') || 'Рекомендации'}
+                onPress={onNavigateToRecommendations}
                 variant="outline"
-                style={styles.actionButton}
-                borderColorOverride={ACTION_COLORS.colorAdvice}
-                textColorOverride={ACTION_COLORS.colorAdvice}
-                iconColorOverride={ACTION_COLORS.colorAdvice}
+                style={styles.fullWidthButton}
+                borderColorOverride={ACTION_COLORS.colorAllReminders}
+                textColorOverride={ACTION_COLORS.colorAllReminders}
+                iconColorOverride={ACTION_COLORS.colorAllReminders}
                 icon="advice"
               />
-              <Button
-                title={t('vehicleDetail.reminders')}
-                onPress={() => onNavigateToReminders(vehicle.id)}
-                variant="outline"
-                style={styles.actionButton}
-                borderColorOverride={ACTION_COLORS.colorReminders}
-                textColorOverride={ACTION_COLORS.colorReminders}
-                iconColorOverride={ACTION_COLORS.colorReminders}
-                icon="reminders"
-              />
-              <Button
-                title={t('navigation.history')}
-                onPress={() => onNavigateToHistory(vehicle.id)}
-                variant="outline"
-                style={styles.actionButton}
-                borderColorOverride={ACTION_COLORS.colorHistory}
-                textColorOverride={ACTION_COLORS.colorHistory}
-                iconColorOverride={ACTION_COLORS.colorHistory}
-                icon="history"
-              />
-              <Button
-                title={t('navigation.sto')}
-                onPress={onNavigateToSTO}
-                variant="outline"
-                style={styles.actionButton}
-                borderColorOverride={ACTION_COLORS.colorSTO}
-                textColorOverride={ACTION_COLORS.colorSTO}
-                iconColorOverride={ACTION_COLORS.colorSTO}
-                icon="sto"
-              />
-              <Button
-                title={t('common.delete')}
-                onPress={handleDeleteVehicle}
-                variant="outline"
-                style={styles.deleteButton}
-                borderColorOverride={ACTION_COLORS.colorDelete}
-                textColorOverride={ACTION_COLORS.colorDelete}
-                iconColorOverride={ACTION_COLORS.colorDelete}
-                icon="trash"
-              />
+              {/* Row with Edit and Delete */}
+              <View style={styles.rowButtons}>
+                <Button
+                  title={t('common.edit')}
+                  onPress={() => setEditingYear(true)}
+                  variant="outline"
+                  style={styles.halfButton}
+                  icon="calendar"
+                />
+                <Button
+                  title={t('common.delete')}
+                  onPress={handleDeleteVehicle}
+                  variant="outline"
+                  style={styles.halfButton}
+                  icon="trash"
+                />
+              </View>
             </View>
           </Card>
         </AnimatedView>
+
+        {editingYear && (
+          <AnimatedView animation="fadeIn" delay={0}>
+            <Card style={{ margin: SPACING.lg, marginTop: 0 }}>
+              <Text style={styles.sectionTitle}>{t('vehicleDetail.yearAndMileage') || 'Год и пробег'}</Text>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineField}>
+                  <Text style={styles.inlineLabel}>{t('vehicleDetail.editYear') || 'Год авто'}</Text>
+                  <Input
+                    value={newYear}
+                    onChangeText={setNewYear}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.inlineField}>
+                  <Text style={styles.inlineLabel}>{t('vehicleDetail.mileage') || 'Пробег'}</Text>
+                  <Input
+                    value={newMileage}
+                    onChangeText={setNewMileage}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+              <View style={styles.mileageButtons}>
+                <Button title={t('common.save')} onPress={handleUpdateYearAndMileage} size="small" style={styles.mileageButton} />
+                <Button title={t('common.cancel')} onPress={() => { setEditingYear(false); setNewYear(String(vehicle.year || '')); setNewMileage(vehicle.mileage.toString()); }} variant="outline" size="small" style={styles.mileageButton} />
+              </View>
+            </Card>
+          </AnimatedView>
+        )}
 
         {serviceHistory.length > 0 && (
           <AnimatedView animation="slideInUp" delay={300}>
@@ -362,6 +358,8 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
             </Card>
           </AnimatedView>
         )}
+
+        
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -485,10 +483,33 @@ const styles = StyleSheet.create({
     margin: SPACING.lg,
     marginTop: 0,
   },
+  inlineRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  inlineField: {
+    flex: 1,
+  },
+  inlineLabel: {
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
+  },
+  fullWidthButton: {
+    flexBasis: '100%',
+  },
+  rowButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    width: '100%',
+  },
+  halfButton: {
+    flex: 1,
+    minWidth: '45%',
   },
   actionButton: {
     flex: 1,

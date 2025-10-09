@@ -174,6 +174,7 @@ const ActionsStackScreen: React.FC = () => {
         headerTintColor: COLORS.accent,
         headerTitleStyle: { fontSize: 18, fontWeight: 'bold', color: COLORS.accent },
         headerTitleAlign: 'center',
+        headerBackVisible: true,
       }}
     >
       <Stack.Screen name="ActionsRoot" options={{ title: t('actions.title') }}>
@@ -191,15 +192,33 @@ const ActionsStackScreen: React.FC = () => {
               // Navigate to Reports screen in Actions stack
               navigation.navigate('Reports');
             }}
+            onNavigateToRecommendations={() => {
+              // Navigate to Recommendations in main stack
+              navigation.getParent()?.getParent()?.navigate('Recommendations');
+            }}
             onNavigateToFamilyGarage={() => {}}
             onNavigateToLocation={() => {}}
           />
         )}
       </Stack.Screen>
-      <Stack.Screen name="STO" options={{ title: t('navigation.sto') }}>
+      <Stack.Screen 
+        name="STO" 
+        options={{ 
+          title: t('navigation.sto'),
+          headerBackTitle: '',
+          headerBackVisible: true,
+        }}
+      >
         {() => <STOScreen />}
       </Stack.Screen>
-      <Stack.Screen name="Reports" options={{ title: t('reports.title') }}>
+      <Stack.Screen 
+        name="Reports" 
+        options={{ 
+          title: t('reports.title'),
+          headerBackTitle: '',
+          headerBackVisible: true,
+        }}
+      >
         {() => <ReportsScreen />}
       </Stack.Screen>
     </Stack.Navigator>
@@ -266,6 +285,7 @@ const BottomTabNavigator: React.FC<BottomTabNavigatorProps> = ({
       >
         {() => <AdviceStackScreen />}
       </Tab.Screen>
+
 
       <Tab.Screen
         name="History"

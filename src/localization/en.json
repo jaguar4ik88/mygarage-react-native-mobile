@@ -27,12 +27,20 @@
     "comingSoon": "Coming soon",
     "comingSoonDescription": "will be available in upcoming updates"
   },
+  "recommendations": {
+    "missingYearTitle": "Specify vehicle year",
+    "missingYearText": "To get recommendations, add the year on the vehicle page.",
+    "noDataTitle": "No recommendations",
+    "noDataText": "No recommendations for selected make, model and year.",
+    "replacementInterval": "Replacement interval"
+  },
   "navigation": {
     "home": "Home",
     "vehicles": "Vehicles",
     "reminders": "Reminders",
     "history": "History",
     "advice": "Advice",
+    "recommendations": "Recommendations",
     "sto": "Service",
     "profile": "Profile",
     "manuals": "Manuals"
@@ -117,7 +125,12 @@
     "days": "days",
     "actions": "Actions",
     "recentRecords": "Recent Records",
-    "showAllRecords": "Show all records →"
+    "yearAndMileage": "Year & mileage",
+    "showAllRecords": "Show all records →",
+    "editYear": "Vehicle year",
+    "yearUpdated": "Year updated",
+    "failedToUpdateYear": "Failed to update year",
+    "invalidYear": "Invalid year"
   },
   "reminders": {
     "title": "Reminders",
@@ -341,7 +354,14 @@
     "invalidCredentials": "Invalid credentials",
     "registrationError": "Registration error",
     "authError": "Authentication error occurred",
-    "fillTestData": "Fill test data"
+    "fillTestData": "Fill test data",
+    "biometricSignIn": "Sign in with",
+    "biometricTypes": {
+      "touchId": "Touch ID",
+      "faceId": "Face ID",
+      "fingerprint": "fingerprint",
+      "biometrics": "biometric authentication"
+    }
   },
   "sto": {
     "title": "Service Stations",

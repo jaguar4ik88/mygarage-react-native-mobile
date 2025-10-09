@@ -22,6 +22,7 @@ interface ActionsScreenProps {
   onNavigateToFamilyGarage: () => void;
   onNavigateToLocation: () => void;
   onNavigateToReports: () => void;
+  onNavigateToRecommendations?: () => void;
 }
 
 const ActionsScreen: React.FC<ActionsScreenProps> = ({
@@ -30,6 +31,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
   onNavigateToFamilyGarage,
   onNavigateToLocation,
   onNavigateToReports,
+  onNavigateToRecommendations,
 }) => {
   const { t } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
@@ -75,6 +77,14 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       icon: 'pie-chart',
       color: '#10b981',
       onPress: onNavigateToReports,
+    },
+    {
+      id: 'recommendations',
+      title: t('navigation.recommendations') || 'Рекомендации',
+      description: t('manual.usefulTips') || '',
+      icon: 'advice',
+      color: '#f97316',
+      onPress: onNavigateToRecommendations,
     },
     {
       id: 'manuals',
@@ -200,7 +210,7 @@ const styles = StyleSheet.create({
   actionItem: {
     marginBottom: SPACING.md,
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     borderLeftWidth: 4,
     padding: SPACING.sm,
     alignItems: 'center',

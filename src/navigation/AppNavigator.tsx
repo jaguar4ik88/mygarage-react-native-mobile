@@ -14,6 +14,7 @@ import VehicleDetailScreen from '../screens/VehicleDetailScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RemindersScreen from '../screens/RemindersScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import RecommendationsScreen from '../screens/RecommendationsScreen';
 
 // Navigation
 import BottomTabNavigator from './BottomTabNavigator';
@@ -199,7 +200,8 @@ const AppNavigator: React.FC = () => {
                   vehicle={route.params?.vehicle}
                   onBack={() => navigation.goBack()}
                   onEditVehicle={(vehicle) => {
-                    // Vehicle editing is now handled directly in VehicleDetailScreen
+                    // Trigger Home vehicles refresh after editing year/mileage
+                    refreshVehicles();
                   }}
                   onVehicleDeleted={handleCarDeleted}
                   onNavigateToReminders={(vehicleId) => {
@@ -215,6 +217,9 @@ const AppNavigator: React.FC = () => {
                   onNavigateToSTO={() => {
                     // Switch to STO tab inside BottomTabNavigator
                     navigation.navigate('Home', { screen: 'STO' as never } as never);
+                  }}
+                  onNavigateToRecommendations={() => {
+                    navigation.navigate('Recommendations');
                   }}
                 />
               )}
@@ -279,6 +284,24 @@ const AppNavigator: React.FC = () => {
             >
               {({ navigation }) => (
                 <HistoryScreen />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen 
+              name="Recommendations" 
+              options={{ 
+                title: t('navigation.recommendations'),
+                headerBackTitle: 'Back',
+                headerTintColor: COLORS.accent,
+                headerTitleStyle: {
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                },
+                headerTitleAlign: 'center',
+              }}
+            >
+              {({ navigation }) => (
+                <RecommendationsScreen />
               )}
             </Stack.Screen>
           </>

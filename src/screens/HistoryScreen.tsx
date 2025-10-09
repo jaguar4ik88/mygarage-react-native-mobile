@@ -752,7 +752,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.md,
     backgroundColor: COLORS.card,
-    borderRadius: 8,
+    borderRadius: 10,
     marginRight: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.border,

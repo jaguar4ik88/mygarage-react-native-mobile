@@ -248,6 +248,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Icon name="forward" size={16} color={COLORS.textMuted} />
           </TouchableOpacity>
 
+
           <TouchableOpacity style={styles.settingItem} onPress={() => setPrivacyOpen(true)}>
             <Icon name="shield" size={20} color={COLORS.text} style={styles.settingIcon} />
             <Text style={styles.settingText}>{t('profile.privacyPolicy')}</Text>

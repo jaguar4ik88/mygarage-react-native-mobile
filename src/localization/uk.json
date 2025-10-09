@@ -27,12 +27,20 @@
     "comingSoon": "Незабаром",
     "comingSoonDescription": "буде доступно в наступних оновленнях"
   },
+  "recommendations": {
+    "missingYearTitle": "Вкажіть рік авто",
+    "missingYearText": "Щоб отримати рекомендації, додайте рік на сторінці авто.",
+    "noDataTitle": "Немає рекомендацій",
+    "noDataText": "Для вибраних марки, моделі та року рекомендації відсутні.",
+    "replacementInterval": "Інтервал заміни"
+  },
   "navigation": {
     "home": "Головна",
     "vehicles": "Автомобілі",
     "reminders": "Нагадування",
     "history": "Історія",
     "advice": "Поради",
+    "recommendations": "Рекомендації",
     "sto": "СТО",
     "profile": "Профіль",
     "manuals": "Інструкції"
@@ -117,6 +125,11 @@
     "days": "дн.",
     "actions": "Дії",
     "recentRecords": "Останні записи",
+    "editYear": "Рік авто",
+    "yearUpdated": "Рік оновлено",
+    "failedToUpdateYear": "Не вдалося оновити рік",
+    "invalidYear": "Некоректний рік",
+    "yearAndMileage": "Рік і пробіг",
     "showAllRecords": "Показати всі записи →"
   },
   "reminders": {
@@ -341,7 +354,14 @@
     "invalidCredentials": "Невірні облікові дані",
     "registrationError": "Помилка реєстрації",
     "authError": "Сталася помилка при авторизації",
-    "fillTestData": "Заповнити тестові дані"
+    "fillTestData": "Заповнити тестові дані",
+    "biometricSignIn": "Увійти з",
+    "biometricTypes": {
+      "touchId": "Touch ID",
+      "faceId": "Face ID",
+      "fingerprint": "відбиток пальця",
+      "biometrics": "біометричною аутентифікацією"
+    }
   },
   "sto": {
     "title": "Станції техобслуговування",

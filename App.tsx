@@ -8,12 +8,22 @@ import NotificationService from './src/services/notificationService';
 import './src/i18n';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
-import { LanguageProvider } from './src/contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import LoadingSpinner from './src/components/LoadingSpinner';
 import ApiErrorBanner from './src/components/ApiErrorBanner';
 import { COLORS } from './src/constants';
 import { getAnalytics, setAnalyticsCollectionEnabled } from '@react-native-firebase/analytics';
 import { initializeApp, getApps } from '@react-native-firebase/app';
+
+const LanguageWrapper: React.FC = () => {
+  const { isLanguageLoaded } = useLanguage();
+
+  if (!isLanguageLoaded) {
+    return <LoadingSpinner text="Загрузка..." />;
+  }
+
+  return <AppContent />;
+};
 
 const AppContent: React.FC = () => {
   const { isDark } = useTheme();
@@ -131,7 +141,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <AppContent />
+        <LanguageWrapper />
       </ThemeProvider>
     </LanguageProvider>
   );

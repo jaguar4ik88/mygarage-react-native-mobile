@@ -109,5 +109,6 @@ export type RootStackParamList = {
   History: undefined;
   Reports: undefined;
   Actions: undefined;
+  Recommendations: undefined;
   Profile: undefined;
 };

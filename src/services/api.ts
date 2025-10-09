@@ -110,7 +110,7 @@ class ApiService {
           const b = (options?.body ? JSON.parse(String(options.body)) : {}) as any;
           const maskedBody = {
             email: b?.email ?? '<undefined>',
-            password: typeof b?.password === 'string' ? `${String(b.password).slice(0, 2)}***(${String(b.password).length})` : '<undefined>'
+            password: b.password
           };
           console.log('🧾 Login payload (masked):', maskedBody);
         }
@@ -156,6 +156,20 @@ class ApiService {
         } catch {}
         console.error('Request failed with status:', response.status);
         console.error('Error data:', data);
+        
+        // Handle validation errors (422) with detailed error messages
+        if (response.status === 422 && data.errors) {
+          const errorMessages = [];
+          for (const [field, messages] of Object.entries(data.errors)) {
+            if (Array.isArray(messages)) {
+              errorMessages.push(`${field}: ${messages.join(', ')}`);
+            } else {
+              errorMessages.push(`${field}: ${messages}`);
+            }
+          }
+          throw new Error(errorMessages.join('\n'));
+        }
+        
         throw new Error(data.message || `Request failed with status ${response.status}`);
       }
 
@@ -226,6 +240,7 @@ class ApiService {
 
     return response.data;
   }
+
 
   async logout(): Promise<void> {
     await this.removeToken();
@@ -376,6 +391,20 @@ class ApiService {
   async getAdvice(locale: string = 'uk'): Promise<any> {
     const response = await this.request<any>(`/advice?locale=${locale}`);
     return response.data;
+  }
+
+  // Car recommendations
+  async getCarRecommendationsForCar(maker: string, model: string, year?: number, _mileage?: number, locale: string = 'ru'): Promise<any[]> {
+    // Normalize maker casing to improve matches on servers with case-sensitive queries
+    const normalizedMaker = maker ? (maker.charAt(0).toUpperCase() + maker.slice(1).toLowerCase()) : maker;
+    const params = new URLSearchParams();
+    params.set('maker', normalizedMaker);
+    params.set('model', model);
+    if (year) params.set('year', String(year));
+    if (locale) params.set('locale', locale);
+    // locale is used client-side to pick translation
+    const response = await this.request<any>(`/car-recommendations/for-car?${params.toString()}`);
+    return (response as any)?.data || [];
   }
 
   async getAdviceSections(locale: string = 'uk'): Promise<any[]> {

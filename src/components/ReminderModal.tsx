@@ -259,7 +259,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                 {/* Next Service */}
                 <View style={styles.section}>
                   <DateInput
-                    label={t('addReminder.nextService')}
+                    label=""
                     value={nextServiceDate}
                     onDateChange={setNextServiceDate}
                     placeholder={t('addReminder.selectDate')}
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 10,
     padding: SPACING.md,
     fontSize: 16,
     color: COLORS.text,
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.sm,
     backgroundColor: COLORS.surface,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     gap: SPACING.xs,
