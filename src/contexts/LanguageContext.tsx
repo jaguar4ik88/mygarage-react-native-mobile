@@ -8,6 +8,7 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (language: Language) => void;
   t: (key: string) => string;
+  isLanguageLoaded: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -18,6 +19,7 @@ interface LanguageProviderProps {
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>((i18n.language as Language) || 'uk');
+  const [isLanguageLoaded, setIsLanguageLoaded] = useState(false);
 
   useEffect(() => {
     const loadSavedLanguage = async () => {
@@ -33,6 +35,8 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
         }
       } catch (error) {
         console.error('Error loading saved language:', error);
+      } finally {
+        setIsLanguageLoaded(true);
       }
     };
     loadSavedLanguage();
@@ -66,7 +70,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, isLanguageLoaded }}>
       {children}
     </LanguageContext.Provider>
   );

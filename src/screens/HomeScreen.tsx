@@ -19,6 +19,7 @@ import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { Vehicle, Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HomeScreenProps {
   onNavigateToVehicleDetail: (vehicle: Vehicle) => void;
@@ -36,6 +37,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   refreshTrigger,
 }) => {
   const { t } = useLanguage();
+  const { isGuest } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       setVehicles(vehiclesData || []);
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert(t('common.error'), t('common.failedToLoadData'));
+      // Для гостей ApiService уже вернул пустые данные, ошибки не будет
+      if (!isGuest) {
+        Alert.alert(t('common.error'), t('common.failedToLoadData'));
+      }
     } finally {
       setLoading(false);
     }
@@ -104,19 +109,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  if (loading) {
-    return <LoadingSpinner text={t('common.loading')} />;
-  }
-
   const nextReminder = getNextReminder();
-
 
   return (
     <SafeAreaView style={styles.container} edges={['left','right']}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={refreshing || loading} onRefresh={handleRefresh} />
         }
       >
         {/* Header moved to native navigator for full-bleed background like Advice */}
@@ -132,7 +132,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('navigation.vehicles')}</Text>
-          {!vehicles || vehicles.length === 0 ? (
+          {loading ? (
+            <View style={styles.emptyVehicles}>
+              <Text style={styles.emptyVehiclesText}>
+                {t('common.loading')}
+              </Text>
+            </View>
+          ) : !vehicles || vehicles.length === 0 ? (
             <View style={styles.emptyVehicles}>
               <Text style={styles.emptyVehiclesText}>
                 {t('home.noVehiclesText')}

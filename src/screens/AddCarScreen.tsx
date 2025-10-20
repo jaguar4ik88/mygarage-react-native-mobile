@@ -24,6 +24,7 @@ import ApiService from '../services/api';
 import ExternalApiService from '../services/externalApi';
 import { Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AddCarScreenProps {
   onCarAdded: (vehicle: Vehicle) => void;
@@ -32,6 +33,7 @@ interface AddCarScreenProps {
 
 const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
   const { t } = useLanguage();
+  const { isGuest, promptToLogin } = useAuth();
   const [method, setMethod] = useState<'vin' | 'engine' | 'manual'>('vin');
   const [loading, setLoading] = useState(false);
   const [vinLoading, setVinLoading] = useState(false);
@@ -247,6 +249,12 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
   const handleSubmit = async () => {
     console.log('handleSubmit called with formData:', formData);
     console.log('method:', method);
+    
+    // Проверка на гостевой режим
+    if (isGuest) {
+      promptToLogin();
+      return;
+    }
     
     if (!validateForm()) {
       console.log('Validation failed, errors:', errors);

@@ -98,7 +98,9 @@ export interface PaginatedApiResponse<T> {
 }
 
 export type RootStackParamList = {
-  Auth: undefined;
+  Welcome: undefined;
+  Auth: { mode?: 'login' | 'register' };
+  ForgotPassword: undefined;
   AddCar: undefined;
   VehicleDetail: { vehicle: Vehicle };
   Home: undefined;
@@ -109,5 +111,6 @@ export type RootStackParamList = {
   History: undefined;
   Reports: undefined;
   Actions: undefined;
+  Recommendations: undefined;
   Profile: undefined;
 };

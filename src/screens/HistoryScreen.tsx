@@ -24,6 +24,7 @@ import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import Analytics from '../services/analyticsService';
 
 interface HistoryScreenProps {
@@ -32,6 +33,7 @@ interface HistoryScreenProps {
 
 const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const { t, language } = useLanguage();
+  const { isGuest, promptToLogin } = useAuth();
   const [history, setHistory] = useState<ServiceHistory[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,6 +164,13 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   };
 
   const handleAddRecord = () => {
+    // Проверка на гостевой режим
+    if (isGuest) {
+      console.log('👤 Guest trying to add record, showing login prompt');
+      promptToLogin();
+      return;
+    }
+    
     setEditingRecord(null);
     setFormData({
       vehicle_id: selectedVehicle?.toString() || '',
@@ -752,7 +761,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.md,
     backgroundColor: COLORS.card,
-    borderRadius: 8,
+    borderRadius: 10,
     marginRight: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.border,

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1041379542857",
+    "project_id": "mygarage-d4022",
+    "storage_bucket": "mygarage-d4022.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1041379542857:android:25bd46f1236aa2976efc98",
+        "android_client_info": {
+          "package_name": "uno.mygarage.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "874405820729-59ggkvoo1adt2qlkoum4rppgsg1ve7po.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHJvXwOkTg3SVYWgGEIUv-hG3mnMOOU3M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "874405820729-59ggkvoo1adt2qlkoum4rppgsg1ve7po.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

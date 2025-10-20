@@ -25,7 +25,15 @@
     "all": "Всі",
     "locale": "uk",
     "comingSoon": "Незабаром",
-    "comingSoonDescription": "буде доступно в наступних оновленнях"
+    "comingSoonDescription": "буде доступно в наступних оновленнях",
+    "noVehicles": "Немає автомобілів"
+  },
+  "recommendations": {
+    "missingYearTitle": "Вкажіть рік авто",
+    "missingYearText": "Щоб отримати рекомендації, додайте рік на сторінці авто.",
+    "noDataTitle": "Немає рекомендацій",
+    "noDataText": "Для вибраних марки, моделі та року рекомендації відсутні.",
+    "replacementInterval": "Інтервал заміни"
   },
   "navigation": {
     "home": "Головна",
@@ -33,6 +41,7 @@
     "reminders": "Нагадування",
     "history": "Історія",
     "advice": "Поради",
+    "recommendations": "Рекомендації",
     "sto": "СТО",
     "profile": "Профіль",
     "manuals": "Інструкції"
@@ -117,6 +126,11 @@
     "days": "дн.",
     "actions": "Дії",
     "recentRecords": "Останні записи",
+    "editYear": "Рік авто",
+    "yearUpdated": "Рік оновлено",
+    "failedToUpdateYear": "Не вдалося оновити рік",
+    "invalidYear": "Некоректний рік",
+    "yearAndMileage": "Рік і пробіг",
     "showAllRecords": "Показати всі записи →"
   },
   "reminders": {
@@ -197,7 +211,7 @@
     "recordTitle": "Назва",
     "description": "Опис",
     "cost": "Вартість (₴)",
-    "serviceDate": "Дата обслуговування",
+    "serviceDate": "Дата",
     "stationName": "Назва станції техобслуговування",
     "vehicle": "Автомобіль",
     "selectVehicle": "Виберіть автомобіль",
@@ -214,7 +228,7 @@
     "costMustBeNumber": "Вартість повинна бути числом",
     "mileageRequired": "Пробіг обов'язковий",
     "mileageMustBeNumber": "Пробіг повинен бути числом",
-    "serviceDateRequired": "Дата обслуговування обов'язкова",
+    "serviceDateRequired": "Дата обов'язкова",
     "selectVehicleRequired": "Виберіть автомобіль",
     "unknownVehicle": "Невідомий автомобіль",
     "kilometers": "км",
@@ -304,6 +318,7 @@
     "faqTitle": "FAQ",
     "faqSubtitle": "Відповіді на часті питання",
     "editProfile": "Редагувати профіль",
+    "register": "Реєстрація",
     "name": "Ім'я",
     "email": "Email",
     "currency": "Валюта",
@@ -341,7 +356,57 @@
     "invalidCredentials": "Невірні облікові дані",
     "registrationError": "Помилка реєстрації",
     "authError": "Сталася помилка при авторизації",
-    "fillTestData": "Заповнити тестові дані"
+    "fillTestData": "Заповнити тестові дані",
+    "biometricSignIn": "Увійти з",
+    "biometricTypes": {
+      "touchId": "Touch ID",
+      "faceId": "Face ID",
+      "fingerprint": "відбиток пальця",
+      "biometrics": "біометричною аутентифікацією"
+    }
+  },
+  "forgotPassword": {
+    "title": "Відновлення пароля",
+    "subtitle": "Введіть вашу електронну адресу і ми надішлемо вам код для скидання пароля",
+    "emailPlaceholder": "Введіть ваш email",
+    "sendLink": "Надіслати код",
+    "backToLogin": "Назад до входу",
+    "emailSent": "Код надіслано!",
+    "emailSentMessage": "Код для відновлення пароля надіслано на вашу електронну пошту",
+    "resetCode": "Код відновлення",
+    "newPassword": "Новий пароль",
+    "resetPassword": "Змінити пароль",
+    "passwordReset": "Пароль змінено!",
+    "passwordResetMessage": "Ваш пароль успішно змінено. Тепер ви можете увійти з новим паролем.",
+    "invalidToken": "Недійсний або прострочений код",
+    "errors": {
+      "emailRequired": "Електронна пошта обов'язкова",
+      "invalidEmail": "Некоректна адреса електронної пошти",
+      "codeRequired": "Код відновлення обов'язковий",
+      "newPasswordRequired": "Новий пароль обов'язковий",
+      "passwordTooShort": "Пароль повинен містити мінімум 8 символів",
+      "emailNotFound": "Користувача з таким email не знайдено",
+      "networkError": "Помилка мережі. Перевірте підключення"
+    }
+  },
+  "welcome": {
+    "title": "Ласкаво просимо до myGarage",
+    "subtitle": "Керуйте своїм автомобілем легко",
+    "login": "Увійти",
+    "register": "Реєстрація",
+    "continueAsGuest": "Продовжити як гість"
+  },
+  "loginPrompt": {
+    "title": "Увійдіть для продовження",
+    "message": "Створіть обліковий запис, щоб додавати автомобілі та синхронізувати дані між пристроями",
+    "addVehicle": "Увійдіть для додавання авто",
+    "addExpense": "Увійдіть для додавання витрат",
+    "addReminder": "Увійдіть для додавання нагадування"
+  },
+  "socialAuth": {
+    "continueWithGoogle": "Продовжити через Google",
+    "continueWithApple": "Продовжити через Apple",
+    "orDivider": "або"
   },
   "sto": {
     "title": "Станції техобслуговування",

@@ -22,6 +22,7 @@ import ApiService from '../services/api';
 import NotificationService from '../services/notificationService';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AddReminderScreenProps {
   userId: number;
@@ -482,7 +483,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     padding: SPACING.md,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
@@ -519,7 +520,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 10,
     padding: SPACING.md,
     flexDirection: 'row',
     justifyContent: 'space-between',

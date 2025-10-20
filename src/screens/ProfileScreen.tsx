@@ -23,7 +23,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import ApiService from '../services/api';
 import { User, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
+import CrashlyticsService from '../services/crashlyticsService';
 
 interface ProfileScreenProps {
   onBack: () => void;
@@ -40,6 +42,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme, isDark } = useTheme();
+  const { isGuest } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +160,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   return (
     <SafeAreaView style={styles.container} edges={['left','right','bottom']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {user && (
+        {user && user.name && (
           <Card style={styles.userCard}>
             <View style={styles.userInfo}>
               <View style={styles.avatar}>
@@ -188,11 +191,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('profile.settings')}</Text>
           
-          <TouchableOpacity style={styles.settingItem} onPress={() => setIsEditOpen(true)}>
-            <Icon name="profile" size={20} color={COLORS.text} style={styles.settingIcon} />
-            <Text style={styles.settingText}>{t('profile.editProfile') || 'Edit profile'}</Text>
-            <Icon name="forward" size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
+          {isGuest ? (
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Auth', { mode: 'register' });
+                }
+              }}
+            >
+              <Icon name="profile" size={20} color={COLORS.accent} style={styles.settingIcon} />
+              <Text style={[styles.settingText, { color: COLORS.accent }]}>
+                {t('profile.register')}
+              </Text>
+              <Icon name="forward" size={16} color={COLORS.accent} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.settingItem} onPress={() => setIsEditOpen(true)}>
+              <Icon name="profile" size={20} color={COLORS.text} style={styles.settingIcon} />
+              <Text style={styles.settingText}>{t('profile.editProfile') || 'Edit profile'}</Text>
+              <Icon name="forward" size={16} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.settingItem}>
             <Icon name="notification" size={20} color={COLORS.text} style={styles.settingIcon} />
@@ -247,6 +267,82 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Text style={styles.settingText}>{t('profile.aboutApp')}</Text>
             <Icon name="forward" size={16} color={COLORS.textMuted} />
           </TouchableOpacity>
+
+          {/* Crashlytics Test Button - только в DEV режиме */}
+          {__DEV__ && (
+            <TouchableOpacity 
+              style={[styles.settingItem, styles.testButton]} 
+              onPress={() => {
+                Alert.alert(
+                  '🧪 Test Crashlytics',
+                  'Выберите тип теста:',
+                  [
+                    {
+                      text: '1. Тестовая ошибка',
+                      onPress: () => {
+                        try {
+                          CrashlyticsService.log('User clicked test error button');
+                          CrashlyticsService.setAttribute('test_type', 'manual_error');
+                          const testError = new Error('Test Crashlytics Error - это тестовая ошибка!');
+                          CrashlyticsService.recordError(testError, 'Manual Test from Profile');
+                          Alert.alert('✅ Готово!', 'Ошибка отправлена в Crashlytics.\nПроверьте Firebase Console через 5-10 минут.');
+                        } catch (e) {
+                          Alert.alert('Ошибка', 'Не удалось отправить тест');
+                        }
+                      }
+                    },
+                    {
+                      text: '2. API ошибка',
+                      onPress: async () => {
+                        CrashlyticsService.log('Testing API error');
+                        await CrashlyticsService.logApiError('/test/endpoint', 500, 'Test API Error');
+                        Alert.alert('✅ Готово!', 'API ошибка отправлена в Crashlytics.');
+                      }
+                    },
+                    {
+                      text: '3. Screen ошибка',
+                      onPress: async () => {
+                        CrashlyticsService.log('Testing screen error');
+                        await CrashlyticsService.logScreenError('ProfileScreen', 'Test Screen Error');
+                        Alert.alert('✅ Готово!', 'Screen ошибка отправлена в Crashlytics.');
+                      }
+                    },
+                    {
+                      text: '4. Краш приложения ⚠️',
+                      onPress: () => {
+                        Alert.alert(
+                          '⚠️ Внимание!',
+                          'Приложение принудительно упадёт. Продолжить?',
+                          [
+                            { text: 'Отмена', style: 'cancel' },
+                            { 
+                              text: 'Краш!', 
+                              style: 'destructive',
+                              onPress: () => {
+                                CrashlyticsService.log('User triggered test crash');
+                                // Принудительный краш
+                                setTimeout(() => {
+                                  throw new Error('TEST CRASH - Принудительный краш для тестирования Crashlytics');
+                                }, 100);
+                              }
+                            }
+                          ]
+                        );
+                      }
+                    },
+                    {
+                      text: 'Отмена',
+                      style: 'cancel'
+                    }
+                  ]
+                );
+              }}
+            >
+              <Icon name="error" size={20} color="#FF6B6B" style={styles.settingIcon} />
+              <Text style={[styles.settingText, { color: '#FF6B6B' }]}>🧪 Test Crashlytics</Text>
+              <Icon name="forward" size={16} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.settingItem} onPress={() => setPrivacyOpen(true)}>
             <Icon name="shield" size={20} color={COLORS.text} style={styles.settingIcon} />
@@ -527,6 +623,11 @@ const createStyles = () => StyleSheet.create({
     fontSize: 14,
     color: COLORS.accent,
     fontWeight: '500',
+  },
+  testButton: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderWidth: 1,
   },
   settingArrow: {
     fontSize: 20,

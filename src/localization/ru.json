@@ -25,7 +25,15 @@
     "all": "Все",
     "locale": "ru",
     "comingSoon": "Скоро",
-    "comingSoonDescription": "будет доступно в следующих обновлениях"
+    "comingSoonDescription": "будет доступно в следующих обновлениях",
+    "noVehicles": "Нет автомобилей"
+  },
+  "recommendations": {
+    "missingYearTitle": "Укажите год авто",
+    "missingYearText": "Для получения рекомендаций добавьте год выпуска на странице авто.",
+    "noDataTitle": "Нет рекомендаций",
+    "noDataText": "Для выбранных марки, модели и года рекомендации отсутствуют.",
+    "replacementInterval": "Интервал замены"
   },
   "navigation": {
     "home": "Главная",
@@ -33,6 +41,7 @@
     "reminders": "Напоминания",
     "history": "История",
     "advice": "Советы",
+    "recommendations": "Рекомендации",
     "sto": "СТО",
     "profile": "Профиль",
     "manuals": "Руководства"
@@ -117,6 +126,11 @@
     "days": "дней",
     "actions": "Действия",
     "recentRecords": "Последние записи",
+    "editYear": "Год авто",
+    "yearAndMileage": "Год и пробег",
+    "yearUpdated": "Год обновлён",
+    "failedToUpdateYear": "Не удалось обновить год",
+    "invalidYear": "Некорректный год",
     "showAllRecords": "Показать все записи →"
   },
   "reminders": {
@@ -197,7 +211,7 @@
     "recordTitle": "Название",
     "description": "Описание",
     "cost": "Стоимость (₽)",
-    "serviceDate": "Дата обслуживания",
+    "serviceDate": "Дата",
     "stationName": "Название СТО",
     "vehicle": "Автомобиль",
     "selectVehicle": "Выберите автомобиль",
@@ -214,7 +228,7 @@
     "costMustBeNumber": "Стоимость должна быть числом",
     "mileageRequired": "Пробег обязателен",
     "mileageMustBeNumber": "Пробег должен быть числом",
-    "serviceDateRequired": "Дата обслуживания обязательна",
+    "serviceDateRequired": "Дата обязательна",
     "selectVehicleRequired": "Выберите автомобиль",
     "unknownVehicle": "Неизвестный автомобиль",
     "kilometers": "км",
@@ -304,6 +318,7 @@
     "faqTitle": "FAQ",
     "faqSubtitle": "Ответы на часто задаваемые вопросы",
     "editProfile": "Редактировать профиль",
+    "register": "Регистрация",
     "name": "Имя",
     "email": "Email",
     "currency": "Валюта",
@@ -357,7 +372,57 @@
     "invalidCredentials": "Неверные учетные данные",
     "registrationError": "Ошибка регистрации",
     "authError": "Произошла ошибка аутентификации",
-    "fillTestData": "Заполнить тестовые данные"
+    "fillTestData": "Заполнить тестовые данные",
+    "biometricSignIn": "Войти с",
+    "biometricTypes": {
+      "touchId": "Touch ID",
+      "faceId": "Face ID",
+      "fingerprint": "отпечатком пальца",
+      "biometrics": "биометрической аутентификацией"
+    }
+  },
+  "forgotPassword": {
+    "title": "Восстановление пароля",
+    "subtitle": "Введите ваш email и мы отправим вам код для сброса пароля",
+    "emailPlaceholder": "Введите ваш email",
+    "sendLink": "Отправить код",
+    "backToLogin": "Назад ко входу",
+    "emailSent": "Код отправлен!",
+    "emailSentMessage": "Код для восстановления пароля отправлен на вашу почту",
+    "resetCode": "Код восстановления",
+    "newPassword": "Новый пароль",
+    "resetPassword": "Сменить пароль",
+    "passwordReset": "Пароль изменен!",
+    "passwordResetMessage": "Ваш пароль успешно изменен. Теперь вы можете войти с новым паролем.",
+    "invalidToken": "Недействительный или просроченный код",
+    "errors": {
+      "emailRequired": "Email обязателен",
+      "invalidEmail": "Некорректный email адрес",
+      "codeRequired": "Код восстановления обязателен",
+      "newPasswordRequired": "Новый пароль обязателен",
+      "passwordTooShort": "Пароль должен содержать минимум 8 символов",
+      "emailNotFound": "Пользователь с таким email не найден",
+      "networkError": "Ошибка сети. Проверьте подключение"
+    }
+  },
+  "welcome": {
+    "title": "Добро пожаловать в myGarage",
+    "subtitle": "Управляйте своим автомобилем легко",
+    "login": "Войти",
+    "register": "Регистрация",
+    "continueAsGuest": "Продолжить как гость"
+  },
+  "loginPrompt": {
+    "title": "Войдите для продолжения",
+    "message": "Создайте аккаунт чтобы добавлять автомобили и синхронизировать данные между устройствами",
+    "addVehicle": "Войдите для добавления авто",
+    "addExpense": "Войдите для добавления траты",
+    "addReminder": "Войдите для добавления напоминания"
+  },
+  "socialAuth": {
+    "continueWithGoogle": "Продолжить через Google",
+    "continueWithApple": "Продолжить через Apple",
+    "orDivider": "или"
   },
   "sto": {
     "title": "Сервисные станции",

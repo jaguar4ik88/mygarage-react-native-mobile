@@ -2,7 +2,7 @@
   "expo": {
     "name": "myGarage",
     "slug": "mygarage",
-    "version": "1.3.0",
+    "version": "1.5.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -19,19 +19,34 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uno.mygarage.app",
+      "buildNumber": "1",
       "googleServicesFile": "./GoogleService-Info.plist",
       "icon": "./assets/icon.png",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to find nearby service stations.",
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate you and protect your personal data.",
-        "UIBackgroundModes": ["background-processing", "background-fetch", "remote-notification"],
+        "UIBackgroundModes": [
+          "background-processing",
+          "background-fetch",
+          "remote-notification"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSAllowsArbitraryLoadsInWebContent": true,
           "NSExceptionDomains": {
-            "localhost": {"NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true},
-            "127.0.0.1": {"NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true},
-            "192.168.7.5": {"NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true}
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            },
+            "127.0.0.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            },
+            "192.168.7.5": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            }
           }
         }
       }
@@ -43,7 +58,8 @@
       },
       "icon": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher.png",
       "package": "uno.mygarage.app",
-      "googleServicesFile": "./android/app/google-services.json",
+      "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
@@ -54,24 +70,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "useModularHeaders": true
-          }
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#ffffff",
-          "mode": "production"
-        }
-      ]
-    ]
+    }
   }
 }

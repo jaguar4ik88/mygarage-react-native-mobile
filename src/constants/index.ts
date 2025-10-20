@@ -22,8 +22,8 @@ export const ACTION_COLORS = {
   colorAdvice: '#6ed6f8',
   colorReminders: '#8bfa8b',
   colorHistory: '#facc15',
-  colorSTO: '#f97316',
-  colorAllReminders: '#f43f5e',
+  colorSTO: '#06b6d4',
+  colorAllReminders: '#f97316',
   colorDelete: '#ef4444',
 };
 
