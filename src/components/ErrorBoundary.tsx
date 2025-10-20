@@ -2,6 +2,7 @@ import React, { Component, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS, SPACING } from '../constants';
 import Icon from './Icon';
+import CrashlyticsService from '../services/crashlyticsService';
 
 interface Props {
   children: ReactNode;
@@ -26,6 +27,15 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: any) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    
+    // Log error to Firebase Crashlytics
+    try {
+      CrashlyticsService.log(`ErrorBoundary caught error: ${error.message}`);
+      CrashlyticsService.log(`Component stack: ${errorInfo.componentStack}`);
+      CrashlyticsService.recordError(error, 'ErrorBoundary');
+    } catch (crashError) {
+      console.error('Failed to log error to Crashlytics:', crashError);
+    }
   }
 
   handleRetry = () => {

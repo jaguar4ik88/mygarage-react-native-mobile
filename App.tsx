@@ -12,8 +12,8 @@ import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import LoadingSpinner from './src/components/LoadingSpinner';
 import ApiErrorBanner from './src/components/ApiErrorBanner';
 import { COLORS } from './src/constants';
-import { getAnalytics, setAnalyticsCollectionEnabled } from '@react-native-firebase/analytics';
-import { initializeApp, getApps } from '@react-native-firebase/app';
+import { getApps } from '@react-native-firebase/app';
+import CrashlyticsService from './src/services/crashlyticsService';
 
 const LanguageWrapper: React.FC = () => {
   const { isLanguageLoaded } = useLanguage();
@@ -29,25 +29,53 @@ const AppContent: React.FC = () => {
   const { isDark } = useTheme();
 
   useEffect(() => {
-    // Initialize Firebase Analytics
-    const initializeAnalytics = async () => {
+    // Initialize Firebase services
+    const initializeFirebase = async () => {
       try {
-        // Check if Firebase is already initialized
-        if (getApps().length === 0) {
-          console.log('Firebase not initialized, skipping analytics');
+        // Wait for Firebase to auto-initialize from native side
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+          const apps = getApps();
+          if (apps.length > 0) {
+            console.log('✅ Firebase App ready:', apps[0].name);
+            break;
+          }
+          console.log(`⏳ Waiting for Firebase... attempt ${attempts + 1}/${maxAttempts}`);
+          await new Promise(resolve => setTimeout(resolve, 300));
+          attempts++;
+        }
+        
+        const apps = getApps();
+        if (apps.length === 0) {
+          console.error('❌ Firebase failed to initialize after', maxAttempts, 'attempts');
           return;
         }
         
-        // Get analytics instance and enable collection
-        const analytics = getAnalytics();
-        await setAnalyticsCollectionEnabled(analytics, true);
-        console.log('Firebase Analytics initialized successfully');
-      } catch (e) {
-        console.warn('Failed to initialize Firebase Analytics:', e);
+        // Initialize Analytics
+        try {
+          const { getAnalytics, setAnalyticsCollectionEnabled } = require('@react-native-firebase/analytics');
+          const analytics = getAnalytics(); // modular API - no app parameter needed
+          await setAnalyticsCollectionEnabled(analytics, true);
+          console.log('✅ Firebase Analytics initialized');
+        } catch (e) {
+          console.warn('⚠️ Failed to initialize Analytics:', e);
+        }
+        
+        // Initialize Crashlytics
+        try {
+          await CrashlyticsService.initialize();
+          console.log('✅ Firebase Crashlytics initialized');
+        } catch (e) {
+          console.warn('⚠️ Failed to initialize Crashlytics:', e);
+        }
+      } catch (error) {
+        console.error('❌ Firebase initialization error:', error);
       }
     };
     
-    initializeAnalytics();
+    initializeFirebase();
   }, []);
 
   return (

@@ -22,6 +22,7 @@ import ApiService from '../services/api';
 import NotificationService from '../services/notificationService';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AddReminderScreenProps {
   userId: number;

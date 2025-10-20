@@ -22,6 +22,7 @@ import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import Analytics from '../services/analyticsService';
 import NotificationService from '../services/notificationService';
 import FeatureGate from '../components/FeatureGate';
@@ -30,6 +31,7 @@ interface RemindersScreenProps {}
 
 const RemindersScreen: React.FC<RemindersScreenProps> = () => {
   const { t, language } = useLanguage();
+  const { isGuest, promptToLogin } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -151,6 +153,13 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
   };
 
   const handleAddReminder = () => {
+    // Проверка на гостевой режим
+    if (isGuest) {
+      console.log('👤 Guest trying to add reminder, showing login prompt');
+      promptToLogin();
+      return;
+    }
+    
     // Check reminder limit for free plan
     if (reminders.length >= 5 && userId) {
       // This would be replaced with actual user plan check

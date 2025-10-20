@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { COLORS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import LoginPromptModal from '../components/LoginPromptModal';
 
 // Screens
+import WelcomeScreen from '../screens/WelcomeScreen';
 import AuthScreen from '../screens/AuthScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import AddCarScreen from '../screens/AddCarScreen';
 import VehicleDetailScreen from '../screens/VehicleDetailScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -26,14 +29,23 @@ import NotificationService from '../services/notificationService';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const AppNavigator: React.FC = () => {
+interface AppNavigatorContentProps {
+  showLoginPrompt: boolean;
+  setShowLoginPrompt: (show: boolean) => void;
+}
+
+const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
+  showLoginPrompt,
+  setShowLoginPrompt,
+}) => {
   const { t } = useLanguage();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { isAuthenticated, isGuest, isLoading, logout } = useAuth();
   const [currentVehicleId, setCurrentVehicleId] = useState<number | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigationRef = useRef<any>(null);
 
   useEffect(() => {
-    checkAuthStatus();
+    loadCurrentVehicle();
   }, []);
 
   useEffect(() => {
@@ -43,24 +55,21 @@ const AppNavigator: React.FC = () => {
     }
   }, [navigationRef.current]);
 
-  const checkAuthStatus = async () => {
+  const loadCurrentVehicle = async () => {
     try {
-      const token = await AsyncStorage.getItem('auth_token');
       const vehicleId = await AsyncStorage.getItem('current_vehicle_id');
-      
-      setIsAuthenticated(!!token);
       setCurrentVehicleId(vehicleId ? parseInt(vehicleId) : null);
     } catch (error) {
-      console.error('Error checking auth status:', error);
-      setIsAuthenticated(false);
+      console.error('Error loading current vehicle:', error);
     }
   };
 
-  const handleAuthSuccess = async () => {
-    try {
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Error saving auth token:', error);
+  const handleAuthSuccess = () => {
+    // Переход на Home экран после успешной авторизации
+    console.log('Auth success, navigating to Home');
+    if (navigationRef.current) {
+      // Используем navigate с reset для очистки истории
+      navigationRef.current.navigate('Home');
     }
   };
 
@@ -90,224 +99,291 @@ const AppNavigator: React.FC = () => {
     }
   };
 
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
   const refreshVehicles = () => {
     console.log('Refreshing vehicles list');
     setRefreshTrigger(prev => prev + 1);
   };
 
-  if (isAuthenticated === null) {
+  const handleLogout = async () => {
+    await logout();
+    setCurrentVehicleId(null);
+    if (navigationRef.current) {
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' }],
+      });
+    }
+  };
+
+  const handleLoginPromptAccepted = (action: 'login' | 'register') => {
+    setShowLoginPrompt(false);
+    if (navigationRef.current) {
+      navigationRef.current.navigate('Auth', { mode: action });
+    }
+  };
+
+  const handleAddCar = () => {
+    if (isGuest) {
+      console.log('👤 Guest trying to add car, showing login prompt');
+      setShowLoginPrompt(true);
+      return;
+    }
+    
+    if (navigationRef.current) {
+      navigationRef.current.navigate('AddCar');
+    }
+  };
+
+  if (isLoading) {
     return <LoadingSpinner />;
   }
 
   return (
-    <NavigationContainer
-      ref={navigationRef}
-      onStateChange={async () => {
-        try {
-          const currentRoute = navigationRef.current?.getCurrentRoute?.();
-          const screenName = currentRoute?.name;
-          if (screenName) {
-            const analytics = getAnalytics();
-            await logEvent(analytics, 'screen_view' as any, { 
-              screen_name: screenName, 
-              screen_class: screenName 
-            });
+    <>
+      <NavigationContainer
+        ref={navigationRef}
+        onStateChange={async () => {
+          try {
+            const currentRoute = navigationRef.current?.getCurrentRoute?.();
+            const screenName = currentRoute?.name;
+            if (screenName) {
+              const analytics = getAnalytics();
+              await logEvent(analytics, 'screen_view' as any, { 
+                screen_name: screenName, 
+                screen_class: screenName 
+              });
+            }
+          } catch (e) {
+            // best-effort; avoid crashing navigation on analytics failure
           }
-        } catch (e) {
-          // best-effort; avoid crashing navigation on analytics failure
-        }
-      }}
-    >
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: { backgroundColor: COLORS.card },
-          headerTintColor: COLORS.accent,
-          headerTitleStyle: { fontWeight: 'bold', color: COLORS.accent },
-          headerTitleAlign: 'center',
         }}
       >
-        {!isAuthenticated ? (
+        <Stack.Navigator
+          initialRouteName="Welcome"
+          screenOptions={{
+            headerStyle: { backgroundColor: COLORS.card },
+            headerTintColor: COLORS.accent,
+            headerTitleStyle: { fontWeight: 'bold', color: COLORS.accent },
+            headerTitleAlign: 'center',
+          }}
+        >
+          {/* Welcome Screen - всегда доступен */}
+          <Stack.Screen 
+            name="Welcome" 
+            component={WelcomeScreen}
+            options={{ headerShown: false }}
+          />
+
+          {/* Auth Screens - доступны всем */}
           <Stack.Screen 
             name="Auth" 
             options={{ headerShown: false }}
           >
-            {() => <AuthScreen onAuthSuccess={handleAuthSuccess} />}
+            {({ navigation, route }) => (
+              <AuthScreen 
+                onAuthSuccess={handleAuthSuccess} 
+                navigation={navigation}
+                initialMode={route.params?.mode || 'login'}
+              />
+            )}
           </Stack.Screen>
-        ) : (
-          <>
-            <Stack.Screen 
-              name="Home" 
-              options={{ 
-                title: t('home.title'),
-                headerShown: false 
-              }}
-            >
-              {({ navigation }) => (
-                <BottomTabNavigator 
-                  navigation={navigation} 
-                  currentVehicleId={currentVehicleId}
-                  setCurrentVehicleId={setCurrentVehicleId}
-                  onLogout={() => {
-                    setIsAuthenticated(false);
-                    setCurrentVehicleId(null);
-                  }}
-                  onAddCar={() => navigation.navigate('AddCar')}
-                  onVehicleDeleted={refreshVehicles}
-                  refreshTrigger={refreshTrigger}
-                />
-              )}
-            </Stack.Screen>
+          
+          <Stack.Screen 
+            name="ForgotPassword" 
+            options={{ headerShown: false }}
+            component={ForgotPasswordScreen}
+          />
 
-            <Stack.Screen 
-              name="AddCar" 
-              options={{ 
-                title: t('addCar.title'),
-                headerBackTitle: 'Back',
-                headerTintColor: COLORS.accent,
-                headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                },
-                headerTitleAlign: 'center',
-              }}
-            >
-              {({ navigation }) => (
-                <AddCarScreen 
-                  onCarAdded={handleCarAdded} 
-                  onBack={() => navigation.goBack()} 
-                />
-              )}
-            </Stack.Screen>
+          {/* Main Screens - доступны и гостям, и залогиненным */}
+          <Stack.Screen 
+            name="Home" 
+            options={{ 
+              title: t('home.title'),
+              headerShown: false 
+            }}
+          >
+            {({ navigation }) => (
+              <BottomTabNavigator 
+                navigation={navigation} 
+                currentVehicleId={currentVehicleId}
+                setCurrentVehicleId={setCurrentVehicleId}
+                onLogout={handleLogout}
+                onAddCar={handleAddCar}
+                onVehicleDeleted={refreshVehicles}
+                refreshTrigger={refreshTrigger}
+              />
+            )}
+          </Stack.Screen>
 
+          <Stack.Screen 
+            name="AddCar" 
+            options={{ 
+              title: t('addCar.title'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation }) => (
+              <AddCarScreen 
+                onCarAdded={handleCarAdded} 
+                onBack={() => navigation.goBack()} 
+              />
+            )}
+          </Stack.Screen>
 
-            <Stack.Screen 
-              name="VehicleDetail" 
-              options={{ 
-                title: t('vehicleDetail.title'),
-                headerBackTitle: 'Back',
-                headerTintColor: COLORS.accent,
-                headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                },
-                headerTitleAlign: 'center',
-              }}
-            >
-              {({ navigation, route }) => (
-                <VehicleDetailScreen 
-                  vehicle={route.params?.vehicle}
-                  onBack={() => navigation.goBack()}
-                  onEditVehicle={(vehicle) => {
-                    // Trigger Home vehicles refresh after editing year/mileage
-                    refreshVehicles();
-                  }}
-                  onVehicleDeleted={handleCarDeleted}
-                  onNavigateToReminders={(vehicleId) => {
-                    navigation.navigate('Reminders');
-                  }}
-                  onNavigateToManual={() => {
-                    // Switch to Advice tab inside BottomTabNavigator
-                    navigation.navigate('Home', { screen: 'Advice' as never } as never);
-                  }}
-                  onNavigateToHistory={(vehicleId) => {
-                    navigation.navigate('History');
-                  }}
-                  onNavigateToSTO={() => {
-                    // Switch to STO tab inside BottomTabNavigator
-                    navigation.navigate('Home', { screen: 'STO' as never } as never);
-                  }}
-                  onNavigateToRecommendations={() => {
-                    navigation.navigate('Recommendations');
-                  }}
-                />
-              )}
-            </Stack.Screen>
+          <Stack.Screen 
+            name="VehicleDetail" 
+            options={{ 
+              title: t('vehicleDetail.title'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation, route }) => (
+              <VehicleDetailScreen 
+                vehicle={route.params?.vehicle}
+                onBack={() => navigation.goBack()}
+                onEditVehicle={(vehicle) => {
+                  // Trigger Home vehicles refresh after editing year/mileage
+                  refreshVehicles();
+                }}
+                onVehicleDeleted={handleCarDeleted}
+                onNavigateToReminders={(vehicleId) => {
+                  navigation.navigate('Reminders');
+                }}
+                onNavigateToManual={() => {
+                  // Switch to Advice tab inside BottomTabNavigator
+                  navigation.navigate('Home', { screen: 'Advice' as never } as never);
+                }}
+                onNavigateToHistory={(vehicleId) => {
+                  navigation.navigate('History');
+                }}
+                onNavigateToSTO={() => {
+                  // Switch to STO tab inside BottomTabNavigator
+                  navigation.navigate('Home', { screen: 'STO' as never } as never);
+                }}
+                onNavigateToRecommendations={() => {
+                  navigation.navigate('Recommendations');
+                }}
+              />
+            )}
+          </Stack.Screen>
 
-            <Stack.Screen 
-              name="Profile" 
-              options={{ 
-                title: t('profile.title'),
-                headerBackTitle: 'Back',
-                headerTintColor: COLORS.accent,
-                headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                },
-                headerTitleAlign: 'center',
-              }}
-            >
-              {({ navigation }) => (
-                <ProfileScreen
-                  onBack={() => navigation.goBack()}
-                  onLogout={() => {
-                    setIsAuthenticated(false);
-                    setCurrentVehicleId(null);
-                  }}
-                  onAddCar={() => navigation.navigate('AddCar')}
-                  navigation={navigation}
-                />
-              )}
-            </Stack.Screen>
+          <Stack.Screen 
+            name="Profile" 
+            options={{ 
+              title: t('profile.title'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation }) => (
+              <ProfileScreen
+                onBack={() => navigation.goBack()}
+                onLogout={handleLogout}
+                onAddCar={() => navigation.navigate('AddCar')}
+                navigation={navigation}
+              />
+            )}
+          </Stack.Screen>
 
-            <Stack.Screen 
-              name="Reminders" 
-              options={{ 
-                title: t('navigation.reminders'),
-                headerBackTitle: 'Back',
-                headerTintColor: COLORS.accent,
-                headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                },
-                headerTitleAlign: 'center',
-              }}
-            >
-              {({ navigation }) => (
-                <RemindersScreen />
-              )}
-            </Stack.Screen>
+          <Stack.Screen 
+            name="Reminders" 
+            options={{ 
+              title: t('navigation.reminders'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation }) => (
+              <RemindersScreen />
+            )}
+          </Stack.Screen>
 
-            <Stack.Screen 
-              name="History" 
-              options={{ 
-                title: t('navigation.history'),
-                headerBackTitle: 'Back',
-                headerTintColor: COLORS.accent,
-                headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                },
-                headerTitleAlign: 'center',
-              }}
-            >
-              {({ navigation }) => (
-                <HistoryScreen />
-              )}
-            </Stack.Screen>
+          <Stack.Screen 
+            name="History" 
+            options={{ 
+              title: t('navigation.history'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation }) => (
+              <HistoryScreen />
+            )}
+          </Stack.Screen>
 
-            <Stack.Screen 
-              name="Recommendations" 
-              options={{ 
-                title: t('navigation.recommendations'),
-                headerBackTitle: 'Back',
-                headerTintColor: COLORS.accent,
-                headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                },
-                headerTitleAlign: 'center',
-              }}
-            >
-              {({ navigation }) => (
-                <RecommendationsScreen />
-              )}
-            </Stack.Screen>
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+          <Stack.Screen 
+            name="Recommendations" 
+            options={{ 
+              title: t('navigation.recommendations'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation }) => (
+              <RecommendationsScreen />
+            )}
+          </Stack.Screen>
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {/* Login Prompt Modal для гостей */}
+      <LoginPromptModal
+        visible={showLoginPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+        onLogin={() => handleLoginPromptAccepted('login')}
+        onRegister={() => handleLoginPromptAccepted('register')}
+      />
+    </>
+  );
+};
+
+const AppNavigator: React.FC = () => {
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+  const handleLoginPrompt = () => {
+    console.log('🔔 handleLoginPrompt called, setting showLoginPrompt to true');
+    setShowLoginPrompt(true);
+  };
+
+  return (
+    <AuthProvider onLoginPrompt={handleLoginPrompt}>
+      <AppNavigatorContent 
+        showLoginPrompt={showLoginPrompt}
+        setShowLoginPrompt={setShowLoginPrompt}
+      />
+    </AuthProvider>
   );
 };
 

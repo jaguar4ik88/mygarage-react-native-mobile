@@ -25,7 +25,8 @@
     "all": "All",
     "locale": "en",
     "comingSoon": "Coming soon",
-    "comingSoonDescription": "will be available in upcoming updates"
+    "comingSoonDescription": "will be available in upcoming updates",
+    "noVehicles": "No Vehicles"
   },
   "recommendations": {
     "missingYearTitle": "Specify vehicle year",
@@ -210,7 +211,7 @@
     "recordTitle": "Title",
     "description": "Description",
     "cost": "Cost (₴)",
-    "serviceDate": "Service Date",
+    "serviceDate": "Date",
     "stationName": "Service Station Name",
     "vehicle": "Vehicle",
     "selectVehicle": "Select Vehicle",
@@ -227,7 +228,7 @@
     "costMustBeNumber": "Cost must be a number",
     "mileageRequired": "Mileage is required",
     "mileageMustBeNumber": "Mileage must be a number",
-    "serviceDateRequired": "Service date is required",
+    "serviceDateRequired": "Date is required",
     "selectVehicleRequired": "Select vehicle",
     "unknownVehicle": "Unknown vehicle",
     "kilometers": "km",
@@ -317,6 +318,7 @@
     "faqTitle": "FAQ",
     "faqSubtitle": "Answers to frequently asked questions",
     "editProfile": "Edit Profile",
+    "register": "Register",
     "name": "Name",
     "email": "Email",
     "currency": "Currency",
@@ -362,6 +364,49 @@
       "fingerprint": "fingerprint",
       "biometrics": "biometric authentication"
     }
+  },
+  "forgotPassword": {
+    "title": "Password Recovery",
+    "subtitle": "Enter your email address and we'll send you a code to reset your password",
+    "emailPlaceholder": "Enter your email",
+    "sendLink": "Send Reset Code",
+    "backToLogin": "Back to Login",
+    "emailSent": "Code Sent!",
+    "emailSentMessage": "Password reset code has been sent to your email",
+    "resetCode": "Reset Code",
+    "newPassword": "New Password",
+    "resetPassword": "Reset Password",
+    "passwordReset": "Password Changed!",
+    "passwordResetMessage": "Your password has been successfully changed. You can now login with your new password.",
+    "invalidToken": "Invalid or expired code",
+    "errors": {
+      "emailRequired": "Email is required",
+      "invalidEmail": "Invalid email address",
+      "codeRequired": "Reset code is required",
+      "newPasswordRequired": "New password is required",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "emailNotFound": "User with this email not found",
+      "networkError": "Network error. Please check your connection"
+    }
+  },
+  "welcome": {
+    "title": "Welcome to myGarage",
+    "subtitle": "Manage your vehicle easily",
+    "login": "Login",
+    "register": "Register",
+    "continueAsGuest": "Continue as Guest"
+  },
+  "loginPrompt": {
+    "title": "Login to Continue",
+    "message": "Create an account to add vehicles and sync your data across devices",
+    "addVehicle": "Login to Add Vehicle",
+    "addExpense": "Login to Add Expense",
+    "addReminder": "Login to Add Reminder"
+  },
+  "socialAuth": {
+    "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
+    "orDivider": "or"
   },
   "sto": {
     "title": "Service Stations",

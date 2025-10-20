@@ -1,4 +1,5 @@
 import ReactNativeBiometrics, {BiometryTypes} from 'react-native-biometrics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface BiometricResult {
   success: boolean;
@@ -142,6 +143,43 @@ class BiometricService {
         return t('auth.biometricTypes.fingerprint');
       default:
         return t('auth.biometricTypes.biometrics');
+    }
+  }
+
+  /**
+   * Проверяет и автоматически выполняет биометрическую аутентификацию
+   * Используется при запуске приложения для автоматического входа
+   */
+  async checkAndAutoAuthenticate(): Promise<boolean> {
+    try {
+      // Проверить доступность биометрии
+      const {available} = await this.isAvailable();
+      if (!available) {
+        console.log('Biometric not available for auto login');
+        return false;
+      }
+      
+      // Проверить настройку пользователя
+      const biometricEnabled = await AsyncStorage.getItem('biometric_enabled');
+      if (biometricEnabled !== 'true') {
+        console.log('Biometric not enabled by user');
+        return false;
+      }
+      
+      // Проверить наличие сохраненных данных
+      const savedEmail = await AsyncStorage.getItem('last_login_email');
+      const savedPassword = await AsyncStorage.getItem('last_login_password');
+      if (!savedEmail || !savedPassword) {
+        console.log('No saved credentials for biometric login');
+        return false;
+      }
+      
+      // Автоматически запросить биометрию
+      const result = await this.authenticate('Войдите в myGarage');
+      return result.success;
+    } catch (error) {
+      console.error('Auto biometric authentication failed:', error);
+      return false;
     }
   }
 }

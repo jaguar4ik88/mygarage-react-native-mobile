@@ -46,6 +46,9 @@ const Input: React.FC<InputProps> = ({
         allowFontScaling={false}
         keyboardType={props.keyboardType || 'default'}
         selectTextOnFocus={props.selectTextOnFocus ?? true}
+        autoCorrect={props.autoCorrect ?? true}
+        autoCapitalize={props.autoCapitalize ?? 'sentences'}
+        spellCheck={props.spellCheck ?? true}
         {...props}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}

@@ -4,11 +4,29 @@ import { API_BASE_URL, API_KEY } from '../constants';
 import eventBus, { EVENTS } from './eventBus';
 import { AuthResponse, User, Vehicle, Reminder, ServiceStation, ServiceHistory, ApiResponse, PaginatedApiResponse } from '../types';
 import OfflineService from './offlineService';
+import CrashlyticsService from './crashlyticsService';
 
 class ApiService {
   private baseURL: string;
   private token: string | null = null;
   private static readonly DICT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+  
+  // Список эндпоинтов, которые требуют авторизацию
+  private readonly PROTECTED_ENDPOINTS = [
+    '/user',
+    '/vehicles',
+    '/reminders',
+    '/service-history',
+    '/history',
+    '/service-stations',
+    '/user-stations',
+    '/user-manuals',
+    '/manuals',
+    '/statistics',
+    '/car-recommendations',
+    '/expenses',
+    '/profile',
+  ];
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -51,6 +69,32 @@ class ApiService {
     }
   }
 
+  private async isGuestMode(): Promise<boolean> {
+    try {
+      const guestMode = await AsyncStorage.getItem('guest_mode');
+      const authToken = await AsyncStorage.getItem('auth_token');
+      console.log(`🔐 Auth check: guest_mode="${guestMode}", has_token=${!!authToken}`);
+      return guestMode === 'true';
+    } catch (error) {
+      console.error('Error checking guest mode:', error);
+      return false;
+    }
+  }
+
+  private isProtectedEndpoint(endpoint: string): boolean {
+    // Убираем query параметры для проверки
+    const cleanEndpoint = endpoint.split('?')[0];
+    
+    const isProtected = this.PROTECTED_ENDPOINTS.some(protected_ep => {
+      // Проверяем что endpoint начинается с защищенного пути или точно совпадает
+      return cleanEndpoint === protected_ep || 
+             cleanEndpoint.startsWith(protected_ep + '/');
+    });
+    
+    console.log(`🛡️ Endpoint check: "${cleanEndpoint}" -> ${isProtected ? 'PROTECTED' : 'PUBLIC'}`);
+    return isProtected;
+  }
+
   private async getHeaders(): Promise<HeadersInit> {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -75,6 +119,22 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
+    // Проверка на гостевой режим для защищенных эндпоинтов
+    const isGuest = await this.isGuestMode();
+    const isProtected = this.isProtectedEndpoint(endpoint);
+    
+    console.log(`🔍 API Check: endpoint="${endpoint}", isGuest=${isGuest}, isProtected=${isProtected}`);
+    
+    if (isGuest && isProtected) {
+      console.log(`👤 Guest mode: Skipping API request to protected endpoint: ${endpoint}`);
+      // Возвращаем пустой успешный ответ для гостей
+      return {
+        data: (Array.isArray([]) ? [] : {}) as T,
+        success: true,
+        message: 'Guest mode - no data available',
+      };
+    }
+
     const url = `${this.baseURL}${endpoint}`;
     const headers = await this.getHeaders();
     // Ensure auth endpoints never send stale Authorization header
@@ -181,6 +241,18 @@ class ApiService {
       console.error('📋 Headers:', headers);
       console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
       
+      // Log to Crashlytics
+      try {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await CrashlyticsService.logApiError(
+          endpoint,
+          0, // status code unknown for network errors
+          errorMessage
+        );
+      } catch (crashError) {
+        console.error('Failed to log API error to Crashlytics:', crashError);
+      }
+      
       // Notify UI to show graceful banner
       eventBus.emit(EVENTS.API_ERROR, {
         url,
@@ -241,6 +313,49 @@ class ApiService {
     return response.data;
   }
 
+  async loginWithGoogle(idToken: string): Promise<AuthResponse> {
+    await this.removeToken();
+    const response = await this.request<AuthResponse>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ id_token: idToken }),
+    });
+
+    if (response.data.token) {
+      await this.setToken(response.data.token);
+    }
+
+    return response.data;
+  }
+
+  async loginWithApple(identityToken: string, user?: string): Promise<AuthResponse> {
+    await this.removeToken();
+    const response = await this.request<AuthResponse>('/auth/apple', {
+      method: 'POST',
+      body: JSON.stringify({ identity_token: identityToken, user }),
+    });
+
+    if (response.data.token) {
+      await this.setToken(response.data.token);
+    }
+
+    return response.data;
+  }
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.request<{ success: boolean; message: string }>('/password/forgot', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response.data;
+  }
+
+  async resetPassword(email: string, token: string, password: string, password_confirmation: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.request<{ success: boolean; message: string }>('/password/reset', {
+      method: 'POST',
+      body: JSON.stringify({ email, token, password, password_confirmation }),
+    });
+    return response.data;
+  }
 
   async logout(): Promise<void> {
     await this.removeToken();
