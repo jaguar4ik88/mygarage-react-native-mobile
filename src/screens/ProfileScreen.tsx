@@ -10,6 +10,7 @@ import {
   Switch,
   Modal,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '../components/Card';
@@ -26,6 +27,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 import CrashlyticsService from '../services/crashlyticsService';
+import Paywall from '../components/Paywall';
+import NotificationService from '../services/notificationService';
+import * as Notifications from 'expo-notifications';
 
 interface ProfileScreenProps {
   onBack: () => void;
@@ -42,8 +46,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme, isDark } = useTheme();
-  const { isGuest } = useAuth();
-  const [user, setUser] = useState<User | null>(null);
+  const { isGuest, user } = useAuth();
+  const [userData, setUserData] = useState<User | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -53,10 +57,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [faqData, setFaqData] = useState<any[]>([]);
   const [faqLoading, setFaqLoading] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  
+  // DEV: Временное состояние для тестирования Paywall
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState('unlimited_vehicles');
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.id) {
+      loadData();
+    } else if (isGuest) {
+      // Для гостевого режима показываем пустой экран без загрузки
+      setLoading(false);
+    }
+  }, [user?.id, isGuest]);
 
   useEffect(() => {
     if (faqOpen) {
@@ -72,7 +85,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
         ApiService.getVehicles(),
       ]);
       
-      setUser(userData);
+      setUserData(userData);
       setVehicles(vehiclesData);
     } catch (error) {
       console.error('Error loading profile data:', error);
@@ -141,6 +154,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     );
   };
 
+  const handleRateApp = () => {
+    let url = '';
+    
+    if (Platform.OS === 'ios') {
+      // Приоритет: сначала пытаемся открыть в App Store приложении
+      url = 'itms-apps://apps.apple.com/app/id6753170441';
+    } else if (Platform.OS === 'android') {
+      // Пытаемся открыть в Google Play приложении
+      url = 'market://details?id=uno.mygarage.app';
+    } else {
+      url = 'https://mygarage.uno/';
+    }
+    
+    Linking.openURL(url).catch(err => {
+      console.error('Failed to open app store:', err);
+      // Fallback на веб-версию
+      const fallbackUrl = Platform.OS === 'android' 
+        ? 'https://play.google.com/store/apps/details?id=uno.mygarage.app'
+        : Platform.OS === 'ios'
+        ? 'https://apps.apple.com/us/app/mygarage-uno/id6753170441'
+        : 'https://mygarage.uno/';
+      Linking.openURL(fallbackUrl).catch(() => {
+        Alert.alert(t('common.error'), t('profile.failedToOpenAppStore') || 'Не удалось открыть магазин приложений');
+      });
+    });
+  };
+
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US', {
@@ -160,24 +200,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   return (
     <SafeAreaView style={styles.container} edges={['left','right','bottom']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {user && user.name && (
+        {userData && userData.name && (
           <Card style={styles.userCard}>
             <View style={styles.userInfo}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
-                  {user.name.charAt(0).toUpperCase()}
+                  {userData.name.charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View style={styles.userDetails}>
-                <Text style={styles.userName}>{user.name}</Text>
-                <Text style={styles.userEmail}>{user.email}</Text>
-                {user.currency && (
+                <Text style={styles.userName}>{userData.name}</Text>
+                <Text style={styles.userEmail}>{userData.email}</Text>
+                {userData.currency && (
                   <Text style={styles.userCurrency}>
-                    {t('profile.currency')}: {user.currency}
+                    {t('profile.currency')}: {userData.currency}
                   </Text>
                 )}
                 <Text style={styles.userDate}>
-                  {t('profile.memberSince')} {formatDate(user.created_at)}
+                  {t('profile.memberSince')} {formatDate(userData.created_at)}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setIsEditOpen(true)} style={styles.editProfileButton}>
@@ -344,12 +384,77 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </TouchableOpacity>
           )}
 
+          {/* DEV: Временный пункт для тестирования Paywall */}
+          {__DEV__ && (
+            <>
+              <TouchableOpacity 
+                style={[styles.settingItem, { backgroundColor: 'rgba(139, 250, 139, 0.1)', borderColor: 'rgba(139, 250, 139, 0.3)', borderWidth: 1 }]} 
+                onPress={() => setShowPaywall(true)}
+              >
+                <Icon name="star" size={20} color="#8bfa8b" style={styles.settingIcon} />
+                <Text style={[styles.settingText, { color: '#8bfa8b' }]}>🎨 Test Paywall</Text>
+                <Icon name="forward" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.settingItem, { backgroundColor: 'rgba(37, 103, 153, 0.1)', borderColor: 'rgba(37, 103, 153, 0.3)', borderWidth: 1 }]} 
+                onPress={async () => {
+                  try {
+                    await Notifications.scheduleNotificationAsync({
+                      content: {
+                        title: t('notifications.expenseReminderTitle') || 'MyGarage',
+                        body: t('notifications.expenseReminderBody') || 'Не забудьте добавить записи о тратах на автомобиль',
+                        data: {
+                          type: 'expense_reminder',
+                        },
+                      },
+                      trigger: null, // Немедленное уведомление
+                    });
+                    Alert.alert('Успех', 'Тестовое уведомление отправлено!');
+                  } catch (error) {
+                    console.error('Error sending test notification:', error);
+                    Alert.alert('Ошибка', 'Не удалось отправить уведомление');
+                  }
+                }}
+              >
+                <Icon name="bell" size={20} color={COLORS.accent} style={styles.settingIcon} />
+                <Text style={[styles.settingText, { color: COLORS.accent }]}>🔔 Test Expense Notification</Text>
+                <Icon name="forward" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </>
+          )}
+
           <TouchableOpacity style={styles.settingItem} onPress={() => setPrivacyOpen(true)}>
             <Icon name="shield" size={20} color={COLORS.text} style={styles.settingIcon} />
             <Text style={styles.settingText}>{t('profile.privacyPolicy')}</Text>
             <Icon name="forward" size={16} color={COLORS.textMuted} />
           </TouchableOpacity>
         </Card>
+
+        
+          {/* Subscription section */}
+          {!isGuest && (
+            <Card style={styles.sectionCard}>
+              <TouchableOpacity 
+                style={styles.settingItem} 
+                onPress={() => navigation?.navigate('Subscription')}
+              >
+                <Icon name="star" size={20} color={COLORS.text} style={styles.settingIcon} />
+                <Text style={styles.settingText}>
+                  {t('subscription.title') || 'Підписка'}
+                </Text>
+                {user?.plan_type !== 'free' && (
+                  <View style={styles.proBadgeSmall}>
+                    <Text style={styles.proBadgeSmallText}>
+                      {user?.plan_type?.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Icon name="forward" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+              </Card>
+          )}
+       
 
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('profile.support')}</Text>
@@ -366,7 +471,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Icon name="forward" size={16} color={COLORS.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={() => Linking.openURL('https://mygarage.uno/')}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleRateApp}>
             <Icon name="star" size={20} color={COLORS.text} style={styles.settingIcon} />
             <Text style={styles.settingText}>{t('profile.rateApp')}</Text>
             <Icon name="forward" size={16} color={COLORS.textMuted} />
@@ -459,6 +564,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <Modal visible={privacyOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPrivacyOpen(false)}>
         <PrivacyPolicyScreen onBack={() => setPrivacyOpen(false)} />
       </Modal>
+
+      {/* DEV: Paywall для тестирования стилей */}
+      <Paywall
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onUpgrade={() => {
+          setShowPaywall(false);
+          navigation?.navigate('Subscription');
+        }}
+        feature={paywallFeature}
+      />
 
     </SafeAreaView>
   );
@@ -624,6 +740,23 @@ const createStyles = () => StyleSheet.create({
     color: COLORS.accent,
     fontWeight: '500',
   },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.md,
+  },
+  proBadgeSmall: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginRight: SPACING.sm,
+  },
+  proBadgeSmallText: {
+    color: COLORS.background,
+    fontSize: 10,
+    fontFamily: FONTS.bold,
+  },
   testButton: {
     backgroundColor: 'rgba(255, 107, 107, 0.1)',
     borderColor: 'rgba(255, 107, 107, 0.3)',
@@ -635,7 +768,7 @@ const createStyles = () => StyleSheet.create({
   },
   logoutButton: {
     margin: SPACING.lg,
-    borderColor: COLORS.error,
+    borderColor: COLORS.accent,
   },
   bottomSpacing: {
     height: SPACING.xxl,

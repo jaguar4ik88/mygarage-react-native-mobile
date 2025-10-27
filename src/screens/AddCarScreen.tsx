@@ -19,6 +19,7 @@ import Modal from 'react-native-modal';
 import Card from '../components/Card';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Icon from '../components/Icon';
+import Paywall from '../components/Paywall';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import ExternalApiService from '../services/externalApi';
@@ -29,14 +30,16 @@ import { useAuth } from '../contexts/AuthContext';
 interface AddCarScreenProps {
   onCarAdded: (vehicle: Vehicle) => void;
   onBack: () => void;
+  navigation?: any;
 }
 
-const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
+const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack, navigation }) => {
   const { t } = useLanguage();
   const { isGuest, promptToLogin } = useAuth();
   const [method, setMethod] = useState<'vin' | 'engine' | 'manual'>('vin');
   const [loading, setLoading] = useState(false);
   const [vinLoading, setVinLoading] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [formData, setFormData] = useState({
     vin: '',
     year: '',
@@ -296,6 +299,22 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
         console.log('Vehicle created via API:', vehicle);
         onCarAdded(vehicle);
     } catch (error: any) {
+      // Проверка лимита подписки (это не ошибка, а бизнес-логика)
+      if (error.upgrade_required || error.limit_reached) {
+        setShowPaywall(true);
+        return;
+      }
+      
+      // Дополнительная проверка по тексту сообщения
+      if (error.message && (
+        error.message.includes('maximum number of vehicles') ||
+        error.message.includes('requires PRO subscription')
+      )) {
+        setShowPaywall(true);
+        return;
+      }
+      
+      // Только реальные ошибки логируем
       console.error('Error adding vehicle:', error);
       
       // Обрабатываем ошибки валидации от API
@@ -483,7 +502,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                 label={t('addCar.make')}
                 value={manualForm.maker}
                 onChangeText={(value) => {
-                  console.log('manual make input:', value);
                   setManualForm(prev => ({ ...prev, maker: value }));
                 }}
                 error={errors.make}
@@ -503,7 +521,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                 label={t('addCar.model')}
                 value={manualForm.model}
                 onChangeText={(value) => {
-                  console.log('manual model input:', value);
                   setManualForm(prev => ({ ...prev, model: value }));
                 }}
                 error={errors.model}
@@ -515,7 +532,6 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
                 keyboardType="default"
                 autoComplete="off"
                 textContentType="none"
-                onFocus={() => console.log('manual model focus')}
               />
               <Input
                 label={t('addCar.year')}
@@ -591,6 +607,16 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
         </Modal>
           </ScrollView>
       </KeyboardAvoidingView>
+
+      <Paywall
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onUpgrade={() => {
+          setShowPaywall(false);
+          navigation?.navigate('Subscription');
+        }}
+        feature="unlimited_vehicles"
+      />
     </SafeAreaView>
   );
 };
@@ -756,3 +782,4 @@ const styles = StyleSheet.create({
 });
 
 export default AddCarScreen;
+

@@ -37,14 +37,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   refreshTrigger,
 }) => {
   const { t } = useLanguage();
-  const { isGuest } = useAuth();
+  const { isGuest, user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.id) {
+      loadData();
+    } else if (isGuest) {
+      // Для гостевого режима показываем пустой экран без загрузки
+      setLoading(false);
+    }
+  }, [user?.id, isGuest]);
 
   // Refresh data when refreshTrigger changes
   useEffect(() => {

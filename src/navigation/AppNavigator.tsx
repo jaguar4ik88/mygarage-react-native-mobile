@@ -7,6 +7,8 @@ import { COLORS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import LoginPromptModal from '../components/LoginPromptModal';
+import Paywall from '../components/Paywall';
+import ApiService from '../services/api';
 
 // Screens
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -15,9 +17,12 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import AddCarScreen from '../screens/AddCarScreen';
 import VehicleDetailScreen from '../screens/VehicleDetailScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SubscriptionScreen from '../screens/SubscriptionScreen';
+import VehicleDocumentsScreen from '../screens/VehicleDocumentsScreen';
 import RemindersScreen from '../screens/RemindersScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import RecommendationsScreen from '../screens/RecommendationsScreen';
+import ExportScreen from '../screens/ExportScreen';
 
 // Navigation
 import BottomTabNavigator from './BottomTabNavigator';
@@ -39,9 +44,10 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
   setShowLoginPrompt,
 }) => {
   const { t } = useLanguage();
-  const { isAuthenticated, isGuest, isLoading, logout } = useAuth();
+  const { isAuthenticated, isGuest, isLoading, logout, user, refreshUser } = useAuth();
   const [currentVehicleId, setCurrentVehicleId] = useState<number | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
   const navigationRef = useRef<any>(null);
 
   useEffect(() => {
@@ -54,6 +60,29 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
       NotificationService.setNavigationRef(navigationRef.current);
     }
   }, [navigationRef.current]);
+
+  useEffect(() => {
+    // Handle notification clicks
+    const subscription = NotificationService.addNotificationResponseListener(response => {
+      const { notification } = response;
+      const notificationData = notification.request.content.data;
+      
+      console.log('Notification tapped:', notificationData);
+      
+      // Handle expense reminder notifications - navigate to History screen
+      if (notificationData.type === 'expense_reminder' && navigationRef.current) {
+        navigationRef.current.navigate('History');
+      }
+      
+      // Handle reminder notifications - navigate to Reminders screen
+      if (notificationData.type === 'reminder' && navigationRef.current) {
+        navigationRef.current.navigate('Reminders');
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => subscription.remove();
+  }, []);
 
   const loadCurrentVehicle = async () => {
     try {
@@ -122,15 +151,52 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
     }
   };
 
-  const handleAddCar = () => {
+  const handleAddCar = async () => {
     if (isGuest) {
       console.log('👤 Guest trying to add car, showing login prompt');
       setShowLoginPrompt(true);
       return;
     }
     
+    try {
+      // Обновляем данные пользователя и проверяем лимит
+      await refreshUser();
+      
+      const vehicles = await ApiService.getVehicles();
+      const planType = user?.plan_type || 'free';
+      const vehicleCount = vehicles.length;
+      
+      // FREE план - максимум 1 машина
+      if (planType === 'free' && vehicleCount >= 1) {
+        console.log('🚫 Vehicle limit reached for free plan');
+        setShowPaywall(true);
+        return;
+      }
+      
+      // PRO/PREMIUM план - максимум 3 машины
+      if ((planType === 'pro' || planType === 'premium') && vehicleCount >= 3) {
+        console.log('🚫 Vehicle limit reached for pro/premium plan');
+        setShowPaywall(true);
+        return;
+      }
+      
+      // Лимит не достигнут - переходим на экран добавления
+      if (navigationRef.current) {
+        navigationRef.current.navigate('AddCar');
+      }
+    } catch (error) {
+      console.error('Error checking vehicle limit:', error);
+      // В случае ошибки всё равно разрешаем переход
+      if (navigationRef.current) {
+        navigationRef.current.navigate('AddCar');
+      }
+    }
+  };
+
+  const handleUpgrade = () => {
+    setShowPaywall(false);
     if (navigationRef.current) {
-      navigationRef.current.navigate('AddCar');
+      navigationRef.current.navigate('Subscription');
     }
   };
 
@@ -275,6 +341,24 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
                 onNavigateToRecommendations={() => {
                   navigation.navigate('Recommendations');
                 }}
+                navigation={navigation}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen 
+            name="VehicleDocuments" 
+            options={({ route }) => ({
+              title: t('documents.title'),
+              headerShown: true,
+              presentation: 'card',
+            })}
+          >
+            {({ navigation, route }) => (
+              <VehicleDocumentsScreen
+                vehicle={route.params?.vehicle}
+                onBack={() => navigation.goBack()}
+                navigation={navigation}
               />
             )}
           </Stack.Screen>
@@ -297,6 +381,22 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
                 onBack={() => navigation.goBack()}
                 onLogout={handleLogout}
                 onAddCar={() => navigation.navigate('AddCar')}
+                navigation={navigation}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen 
+            name="Subscription" 
+            options={{ 
+              headerShown: false,
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+            }}
+          >
+            {({ navigation }) => (
+              <SubscriptionScreen
+                onBack={() => navigation.goBack()}
                 navigation={navigation}
               />
             )}
@@ -355,6 +455,24 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
               <RecommendationsScreen />
             )}
           </Stack.Screen>
+
+          <Stack.Screen 
+            name="Export" 
+            options={{ 
+              title: t('export.title'),
+              headerBackTitle: t('common.back'),
+              headerTintColor: COLORS.accent,
+              headerTitleStyle: {
+                fontSize: 18,
+                fontWeight: 'bold',
+              },
+              headerTitleAlign: 'center',
+            }}
+          >
+            {({ navigation }) => (
+              <ExportScreen navigation={navigation} />
+            )}
+          </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
 
@@ -364,6 +482,14 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
         onClose={() => setShowLoginPrompt(false)}
         onLogin={() => handleLoginPromptAccepted('login')}
         onRegister={() => handleLoginPromptAccepted('register')}
+      />
+
+      {/* Paywall для ограничений бесплатного плана */}
+      <Paywall
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onUpgrade={handleUpgrade}
+        feature="unlimited_vehicles"
       />
     </>
   );

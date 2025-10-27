@@ -13,19 +13,24 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import FormModal from '../components/FormModal';
+import ExpenseModal from '../components/ExpenseModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Icon from '../components/Icon';
 import DateInput from '../components/DateInput';
+import Paywall from '../components/Paywall';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import Analytics from '../services/analyticsService';
+import PdfExportService from '../services/pdfExportService';
 
 interface HistoryScreenProps {
   navigation?: any;
@@ -33,7 +38,7 @@ interface HistoryScreenProps {
 
 const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const { t, language } = useLanguage();
-  const { isGuest, promptToLogin } = useAuth();
+  const { isGuest, promptToLogin, user, refreshUser } = useAuth();
   const [history, setHistory] = useState<ServiceHistory[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,9 +56,13 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
     description: '',
     cost: '',
     service_date: '',
-    station_name: '',
   });
+  const [receiptPhoto, setReceiptPhoto] = useState<any>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Вычисляем isPro на основе user.plan_type (вместо отдельного состояния)
+  const isPro = user?.plan_type === 'pro' || user?.plan_type === 'premium';
   const [stats, setStats] = useState({
     totalSpent: 0,
     thisMonth: 0,
@@ -61,8 +70,13 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   });
 
   useEffect(() => {
-    loadData(1);
-  }, []);
+    if (user?.id) {
+      loadData(1);
+    } else if (isGuest) {
+      // Для гостевого режима показываем пустой экран без загрузки
+      setLoading(false);
+    }
+  }, [user?.id, isGuest]);
 
   const loadMore = () => {
     if (!loadingMore && hasMore) {
@@ -91,9 +105,15 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         setLoadingMore(true);
       }
       
-      // Get current user first
-      const user = await ApiService.getProfile();
+      // Используем user из контекста
+      if (!user?.id) {
+        console.log('User not loaded yet');
+        setLoading(false);
+        return;
+      }
+      
       setUserCurrency(user.currency || 'UAH');
+      console.log('📋 User plan:', user.plan_type);
       
       const [historyResponse, vehiclesData, statisticsData] = await Promise.all([
         ApiService.getServiceHistory(undefined, page, 20),
@@ -102,6 +122,7 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
       ]);
       
       if (page === 1) {
+        console.log('Loaded history data:', historyResponse.data);
         setHistory(historyResponse.data);
         setVehicles(vehiclesData);
         
@@ -163,13 +184,16 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
     });
   };
 
-  const handleAddRecord = () => {
+  const handleAddRecord = async () => {
     // Проверка на гостевой режим
     if (isGuest) {
       console.log('👤 Guest trying to add record, showing login prompt');
       promptToLogin();
       return;
     }
+    
+    // Обновляем данные пользователя перед открытием модалки
+    await refreshUser();
     
     setEditingRecord(null);
     setFormData({
@@ -178,21 +202,24 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
       description: '',
       cost: '',
       service_date: new Date().toISOString().split('T')[0], // Today's date
-      station_name: '',
     });
     setErrors({});
     setShowAddModal(true);
   };
 
-  const handleEditRecord = (record: ServiceHistory) => {
+  const handleEditRecord = async (record: ServiceHistory) => {
+    // Обновляем данные пользователя перед открытием модалки
+    await refreshUser();
+    
+    console.log('Editing record:', record);
+    console.log('Receipt photo:', record.receipt_photo);
     setEditingRecord(record);
     setFormData({
       vehicle_id: record.vehicle_id.toString(),
       expense_type_id: (record as any).expense_type_id ? String((record as any).expense_type_id) : '',
       description: record.description,
       cost: record.cost.toString(),
-      service_date: record.service_date.split('T')[0],
-      station_name: record.station_name || '',
+      service_date: record.service_date.split('T')[0]
     });
     setErrors({});
     setShowAddModal(true);
@@ -246,41 +273,44 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
+  const handleSubmit = async (formData: any, receiptPhoto?: any) => {
+    const recordData = {
+      vehicle_id: parseInt(formData.vehicle_id),
+      expense_type_id: parseInt(formData.expense_type_id),
+      description: formData.description,
+      cost: parseFloat(formData.cost),
+      service_date: formData.service_date,
+    };
 
-    try {
-      const recordData = {
-        vehicle_id: parseInt(formData.vehicle_id),
-        expense_type_id: parseInt(formData.expense_type_id),
-        description: formData.description,
-        cost: parseFloat(formData.cost),
-        service_date: formData.service_date,
-        station_name: formData.station_name || undefined,
-      };
-
-      if (editingRecord) {
-        await ApiService.updateServiceRecord(editingRecord.id, recordData);
-        await Analytics.track('history_edit', {
-          vehicle_id: recordData.vehicle_id,
-          expense_type_id: recordData.expense_type_id,
-          cost: recordData.cost,
-        });
-      } else {
-        await ApiService.addServiceRecord(recordData);
-        await Analytics.track('history_add', {
-          vehicle_id: recordData.vehicle_id,
-          expense_type_id: recordData.expense_type_id,
-          cost: recordData.cost,
-        });
+    if (editingRecord) {
+      // Если это существующее фото (не файл), не передаем его в API
+      const photoToSend = receiptPhoto?.isExisting ? undefined : receiptPhoto;
+      console.log('Updating record with photo:', { receiptPhoto, photoToSend, isExisting: receiptPhoto?.isExisting });
+      try {
+        await ApiService.updateServiceRecord(editingRecord.id, recordData, photoToSend);
+      } catch (error) {
+        console.error('Error updating service record:', error);
+        throw error;
       }
-
-      setShowAddModal(false);
-      await loadData();
-    } catch (error: any) {
-      await Analytics.track('history_edit', { error: true });
-      Alert.alert(t('history.error'), error.message || t('history.failedToSaveRecord'));
+      await Analytics.track('history_edit', {
+        vehicle_id: recordData.vehicle_id,
+        expense_type_id: recordData.expense_type_id,
+        cost: recordData.cost,
+        has_receipt: !!receiptPhoto,
+      });
+    } else {
+      console.log('Creating new record with photo:', { receiptPhoto, hasPhoto: !!receiptPhoto });
+      await ApiService.addServiceRecord(recordData, receiptPhoto);
+      await Analytics.track('history_add', {
+        vehicle_id: recordData.vehicle_id,
+        expense_type_id: recordData.expense_type_id,
+        cost: recordData.cost,
+        has_receipt: !!receiptPhoto,
+      });
     }
+
+    setShowAddModal(false);
+    await loadData();
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -313,6 +343,62 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
       style: 'currency',
       currency: userCurrency,
     }).format(amount);
+  };
+
+  const handleExportToPdf = async () => {
+    try {
+      const user = await ApiService.getProfile();
+      const isPro = user?.plan_type === 'pro' || user?.plan_type === 'premium';
+      
+      if (!isPro) {
+        Alert.alert(
+          t('subscription.proFeature') || 'Функция PRO',
+          t('subscription.pdfExportRequiresPro') || 'Экспорт в PDF доступен только для PRO подписчиков',
+          [
+            { text: t('common.cancel') || 'Отмена', style: 'cancel' },
+            {
+              text: t('subscription.upgrade') || 'Обновить',
+              onPress: () => navigation?.navigate('Subscription'),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Генерируем PDF
+      const pdfUri = await PdfExportService.exportToPdf({
+        history,
+        vehicles,
+        stats,
+        currency: userCurrency,
+        language,
+      });
+
+      // Открываем диалог для сохранения/отправки
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(pdfUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: t('history.exportPdf') || 'Экспорт отчета',
+        });
+      } else {
+        Alert.alert(
+          t('common.success'),
+          t('history.pdfExported') || `PDF сохранен: ${pdfUri}`
+        );
+      }
+
+      await Analytics.track('pdf_export', {
+        record_count: history.length,
+        total_expenses: stats.totalSpent,
+      });
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      Alert.alert(
+        t('common.error'),
+        t('history.pdfExportFailed') || 'Не удалось экспортировать PDF'
+      );
+    }
   };
 
   // Removed emoji icon map to comply with project UI policy (no emojis)
@@ -377,11 +463,17 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
           ListHeaderComponent={() => (
             <>
               <View style={styles.topActions}>
-                <Button title={t('history.addRecord')} onPress={handleAddRecord} />
+                <Button 
+                  title={t('history.addRecord')} 
+                  onPress={handleAddRecord} 
+                  style={styles.addRecordButton}
+                  size="small"
+                />
                 <Button 
                   title={t('actions.statistics')} 
                   onPress={() => navigation?.navigate('Reports')} 
                   style={styles.statisticsButton}
+                  size="small"
                 />
               </View>
               <View style={styles.statsContainer}>
@@ -407,6 +499,7 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
                 title={t('history.addRecord')}
                 onPress={handleAddRecord}
                 style={styles.addRecordButton}
+                size="small"
               />
             </Card>
           )}
@@ -430,100 +523,20 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         />
       </KeyboardAvoidingView>
 
-      <FormModal
+      <ExpenseModal
         visible={showAddModal}
-        title={editingRecord ? t('history.editRecord') : t('history.addRecord')}
-        onClose={() => setShowAddModal(false)}
+        onClose={() => {
+          setShowAddModal(false);
+          setEditingRecord(null);
+        }}
         onSubmit={handleSubmit}
-        cancelLabel={t('common.cancel')}
-        submitLabel={t('history.save')}
-      >
-            
-            <View style={styles.typeSelector}>
-              <Text style={styles.typeLabel}>{t('history.recordType')}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeOptionsContainer}>
-                <View style={styles.typeOptions}>
-                  {expenseTypes.map((et) => ({ key: String(et.id), title: et.name })).map((type) => (
-                    <TouchableOpacity
-                      key={type.key}
-                      style={[
-                        styles.typeOption,
-                        (formData as any).expense_type_id === type.key && styles.typeOptionActive
-                      ]}
-                      onPress={() => handleInputChange('expense_type_id', type.key)}
-                    >
-                      <Text style={[
-                        styles.typeOptionText,
-                        (formData as any).expense_type_id === type.key && styles.typeOptionTextActive
-                      ]}>
-                        {type.title}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={styles.vehicleSelector}>
-              <Text style={styles.vehicleLabel}>{t('history.vehicle')}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {vehicles.map((vehicle) => (
-                  <TouchableOpacity
-                    key={vehicle.id}
-                    style={[
-                      styles.vehicleOption,
-                      formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionActive
-                    ]}
-                    onPress={() => handleInputChange('vehicle_id', vehicle.id.toString())}
-                  >
-                    <Text style={[
-                      styles.vehicleOptionText,
-                      formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionTextActive
-                    ]}>
-                      {vehicle.year} {vehicle.make} {vehicle.model}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              {errors.vehicle_id && <Text style={styles.errorText}>{errors.vehicle_id}</Text>}
-            </View>
-
-
-            <Input
-              label={t('history.description')}
-              value={formData.description}
-              onChangeText={(value) => handleInputChange('description', value)}
-              placeholder={t('history.description')}
-              multiline
-              numberOfLines={3}
-            />
-
-            <Input
-              label={t('history.cost')}
-              value={formData.cost}
-              onChangeText={(value) => handleInputChange('cost', value)}
-              error={errors.cost}
-              keyboardType="numeric"
-              placeholder="0"
-            />
-
-
-            <DateInput
-              label={t('history.serviceDate')}
-              value={formData.service_date}
-              onDateChange={(date) => handleInputChange('service_date', date)}
-              placeholder="YYYY-MM-DD"
-              error={errors.service_date}
-              maximumDate={new Date()}
-            />
-
-            <Input
-              label={t('history.stationName')}
-              value={formData.station_name}
-              onChangeText={(value) => handleInputChange('station_name', value)}
-              placeholder={t('history.stationName')}
-            />
-      </FormModal>
+        editingRecord={editingRecord}
+        vehicles={vehicles}
+        expenseTypes={expenseTypes}
+        initialVehicleId={selectedVehicle}
+        userCurrency={userCurrency}
+        isPro={isPro}
+      />
     </SafeAreaView>
   );
 };
@@ -558,8 +571,12 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
+    flexWrap: 'wrap',
   },
   statisticsButton: {
+    flex: 1,
+  },
+  exportButton: {
     flex: 1,
   },
   statCard: {
@@ -597,7 +614,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   addRecordButton: {
-    width: '100%',
+    flex: 1,
   },
   loadingMore: {
     padding: SPACING.lg,

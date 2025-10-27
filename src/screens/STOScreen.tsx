@@ -22,11 +22,13 @@ import STOModal from '../components/STOModal';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ServiceStation } from '../types';
 import Analytics from '../services/analyticsService';
 
 const STOScreen: React.FC = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [stations, setStations] = useState<ServiceStation[]>([]);
   const [favoriteStations, setFavoriteStations] = useState<ServiceStation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,8 +50,12 @@ const STOScreen: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Get current user first
-      const user = await ApiService.getProfile();
+      // Используем данные пользователя из контекста
+      if (!user?.id) {
+        console.error('User not available');
+        return;
+      }
+      
       setUserId(user.id);
       
       // Load user's stations

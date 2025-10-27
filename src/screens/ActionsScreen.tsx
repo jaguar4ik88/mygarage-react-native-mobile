@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,18 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import Card from '../components/Card';
 import Icon from '../components/Icon';
 import AnimatedView from '../components/AnimatedView';
 import { COLORS, FONTS, SPACING } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import ApiService from '../services/api';
+import PdfExportService from '../services/pdfExportService';
+import Analytics from '../services/analyticsService';
+import { Vehicle, ServiceHistory } from '../types';
 
 interface ActionsScreenProps {
   onNavigateToReminders: () => void;
@@ -23,6 +30,8 @@ interface ActionsScreenProps {
   onNavigateToLocation: () => void;
   onNavigateToReports: () => void;
   onNavigateToRecommendations?: () => void;
+  onNavigateToExport?: () => void;
+  navigation?: any;
 }
 
 const ActionsScreen: React.FC<ActionsScreenProps> = ({
@@ -32,18 +41,58 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
   onNavigateToLocation,
   onNavigateToReports,
   onNavigateToRecommendations,
+  onNavigateToExport,
+  navigation,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  const [history, setHistory] = useState<ServiceHistory[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [stats, setStats] = useState({
+    totalSpent: 0,
+    thisMonth: 0,
+    thisYear: 0,
+  });
   
   const screenWidth = Dimensions.get('window').width;
   const itemWidth = (screenWidth - SPACING.lg * 2 - SPACING.sm) / 2; // ширина экрана минус padding и gap
 
+  const isPro = user?.plan_type === 'pro' || user?.plan_type === 'premium';
+
+  const loadData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const [historyResponse, vehiclesData, statisticsData] = await Promise.all([
+        ApiService.getServiceHistory(),
+        ApiService.getVehicles(),
+        ApiService.getExpensesStatistics(user.id),
+      ]);
+      
+      setHistory(historyResponse.data || []);
+      setVehicles(vehiclesData || []);
+      setStats({
+        totalSpent: statisticsData.total_expenses || 0,
+        thisMonth: statisticsData.monthly_expenses?.[statisticsData.monthly_expenses.length - 1]?.total_cost || 0,
+        thisYear: statisticsData.total_expenses || 0,
+      });
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // Small timeout is enough to force a re-render for style updates
-    setTimeout(() => setRefreshing(false), 100);
-  }, []);
+    loadData();
+    setTimeout(() => setRefreshing(false), 1000);
+  }, [user?.id]);
 
   const handleComingSoon = (feature: string) => {
     Alert.alert(
@@ -51,6 +100,15 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       `${feature} ${t('common.comingSoonDescription')}`,
       [{ text: t('common.ok') }]
     );
+  };
+
+  const handleExportToPdf = () => {
+    // Навигация к экрану экспорта
+    if (navigation) {
+      navigation.navigate('Export');
+    } else if (onNavigateToExport) {
+      onNavigateToExport();
+    }
   };
 
   const actionItems = [
@@ -71,14 +129,6 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       onPress: onNavigateToSTO,
     },
     {
-      id: 'statistics',
-      title: t('actions.statistics'),
-      description: t('actions.statisticsDescription'),
-      icon: 'pie-chart',
-      color: '#10b981',
-      onPress: onNavigateToReports,
-    },
-    {
       id: 'recommendations',
       title: t('navigation.recommendations') || 'Рекомендации',
       description: t('manual.usefulTips') || '',
@@ -87,12 +137,29 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       onPress: onNavigateToRecommendations,
     },
     {
-      id: 'manuals',
-      title: t('navigation.manuals') || t('manual.title'),
-      description: t('actions.manualsDescription'),
-      icon: 'book',
-      color: '#f59e0b',
-      onPress: () => handleComingSoon(t('manual.title')),
+      id: 'statistics',
+      title: t('actions.statistics'),
+      description: t('actions.statisticsDescription'),
+      icon: 'pie-chart',
+      color: '#10b981',
+      onPress: onNavigateToReports,
+    },
+    // Экспорт PDF - только для PRO пользователей
+    ...(isPro ? [{
+      id: 'pdf-export',
+      title: t('actions.pdfExport') || 'Экспорт в PDF',
+      description: t('actions.pdfExportDescription') || 'Экспорт всех расходов в PDF',
+      icon: 'file',
+      color: '#ec4899',
+      onPress: handleExportToPdf,
+    }] : []),
+    {
+      id: 'ai-assistant',
+      title: t('actions.aiAssistant') || 'AI помощник',
+      description: t('actions.aiAssistantDescription') || 'Умный помощник для автомобиля',
+      icon: 'bot',
+      color: '#8b5cf6',
+      onPress: () => handleComingSoon(t('actions.aiAssistant') || 'AI помощник'),
       comingSoon: true,
     },
     {
@@ -100,17 +167,17 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       title: t('actions.familyGarage'),
       description: t('actions.familyGarageDescription'),
       icon: 'users',
-      color: '#8b5cf6',
+      color: '#6366f1',
       onPress: () => handleComingSoon(t('actions.familyGarage')),
       comingSoon: true,
     },
     {
-      id: 'location',
-      title: t('actions.vehicleLocation'),
-      description: t('actions.vehicleLocationDescription'),
-      icon: 'location',
+      id: 'trips',
+      title: t('actions.trips') || 'Поездки',
+      description: t('actions.tripsDescription') || 'История поездок',
+      icon: 'route',
       color: '#ef4444',
-      onPress: () => handleComingSoon(t('actions.vehicleLocation')),
+      onPress: () => handleComingSoon(t('actions.trips') || 'Поездки'),
       comingSoon: true,
     },
   ];

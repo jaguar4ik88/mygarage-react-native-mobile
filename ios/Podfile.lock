@@ -13,6 +13,9 @@ PODS:
     - ExpoModulesCore
   - EXConstants (18.0.9):
     - ExpoModulesCore
+  - EXImageLoader (6.0.0):
+    - ExpoModulesCore
+    - React-Core
   - EXNotifications (0.32.12):
     - ExpoModulesCore
   - Expo (54.0.12):
@@ -50,9 +53,13 @@ PODS:
     - ExpoModulesCore
   - ExpoDevice (8.0.9):
     - ExpoModulesCore
-  - ExpoFileSystem (19.0.16):
+  - ExpoDocumentPicker (14.0.7):
+    - ExpoModulesCore
+  - ExpoFileSystem (19.0.17):
     - ExpoModulesCore
   - ExpoFont (14.0.8):
+    - ExpoModulesCore
+  - ExpoImagePicker (17.0.8):
     - ExpoModulesCore
   - ExpoKeepAwake (15.0.7):
     - ExpoModulesCore
@@ -83,6 +90,10 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoPrint (15.0.7):
+    - ExpoModulesCore
+  - ExpoSharing (14.0.7):
+    - ExpoModulesCore
   - FBLazyVector (0.81.4)
   - Firebase/CoreOnly (12.2.0):
     - FirebaseCore (~> 12.2.0)
@@ -1554,6 +1565,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-webview (13.16.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - React-NativeModulesApple (0.81.4):
     - hermes-engine
     - React-callinvoker
@@ -2125,18 +2158,23 @@ PODS:
 DEPENDENCIES:
   - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
+  - EXImageLoader (from `../node_modules/expo-image-loader/ios`)
   - EXNotifications (from `../node_modules/expo-notifications/ios`)
   - Expo (from `../node_modules/expo`)
   - "ExpoAdapterGoogleSignIn (from `../node_modules/@react-native-google-signin/google-signin/expo/ios`)"
   - ExpoAppleAuthentication (from `../node_modules/expo-apple-authentication/ios`)
   - ExpoAsset (from `../node_modules/expo/node_modules/expo-asset/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
-  - ExpoFileSystem (from `../node_modules/expo/node_modules/expo-file-system/ios`)
+  - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
+  - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
+  - ExpoImagePicker (from `../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../node_modules/expo/node_modules/expo-keep-awake/ios`)
   - ExpoLinearGradient (from `../node_modules/expo-linear-gradient/ios`)
   - ExpoLocation (from `../node_modules/expo-location/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
+  - ExpoPrint (from `../node_modules/expo-print/ios`)
+  - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2176,6 +2214,7 @@ DEPENDENCIES:
   - react-native-biometrics (from `../node_modules/react-native-biometrics`)
   - react-native-maps (from `../node_modules/react-native-maps`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
+  - react-native-webview (from `../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
   - React-perflogger (from `../node_modules/react-native/ReactCommon/reactperflogger`)
@@ -2247,6 +2286,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-application/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
+  EXImageLoader:
+    :path: "../node_modules/expo-image-loader/ios"
   EXNotifications:
     :path: "../node_modules/expo-notifications/ios"
   Expo:
@@ -2259,10 +2300,14 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo/node_modules/expo-asset/ios"
   ExpoDevice:
     :path: "../node_modules/expo-device/ios"
+  ExpoDocumentPicker:
+    :path: "../node_modules/expo-document-picker/ios"
   ExpoFileSystem:
-    :path: "../node_modules/expo/node_modules/expo-file-system/ios"
+    :path: "../node_modules/expo-file-system/ios"
   ExpoFont:
     :path: "../node_modules/expo-font/ios"
+  ExpoImagePicker:
+    :path: "../node_modules/expo-image-picker/ios"
   ExpoKeepAwake:
     :path: "../node_modules/expo/node_modules/expo-keep-awake/ios"
   ExpoLinearGradient:
@@ -2271,6 +2316,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-location/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
+  ExpoPrint:
+    :path: "../node_modules/expo-print/ios"
+  ExpoSharing:
+    :path: "../node_modules/expo-sharing/ios"
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
   hermes-engine:
@@ -2348,6 +2397,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-maps"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
+  react-native-webview:
+    :path: "../node_modules/react-native-webview"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-oscompat:
@@ -2438,18 +2489,23 @@ SPEC CHECKSUMS:
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
   EXApplication: 296622817d459f46b6c5fe8691f4aac44d2b79e7
   EXConstants: a95804601ee4a6aa7800645f9b070d753b1142b3
+  EXImageLoader: 189e3476581efe3ad4d1d3fb4735b7179eb26f05
   EXNotifications: 7cff475adb5d7a255a9ea46bbd2589cb3b454506
   Expo: 24375439ae3be9e01cdd3ab8e03967d453e66d3e
   ExpoAdapterGoogleSignIn: 5965ec283d2c0f53c483c4e2080ea055a881dfe9
   ExpoAppleAuthentication: bc9de6e9ff3340604213ab9031d4c4f7f802623e
   ExpoAsset: 9ba6fbd677fb8e241a3899ac00fa735bc911eadf
   ExpoDevice: 148accb4071873d19fba80a2506c58ffa433d620
-  ExpoFileSystem: f4bf6bac4ede3b6671c22777f01102a02a028412
+  ExpoDocumentPicker: 2200eefc2817f19315fa18f0147e0b80ece86926
+  ExpoFileSystem: b79eadbda7b7f285f378f95f959cc9313a1c9c61
   ExpoFont: 86ceec09ffed1c99cfee36ceb79ba149074901b5
+  ExpoImagePicker: d251aab45a1b1857e4156fed88511b278b4eee1c
   ExpoKeepAwake: 1a2e820692e933c94a565ec3fbbe38ac31658ffe
   ExpoLinearGradient: a464898cb95153125e3b81894fd479bcb1c7dd27
   ExpoLocation: 93d7faa0c2adbd5a04686af0c1a61bc6ed3ee2f7
   ExpoModulesCore: e646280de9e06297a3668c568ddc6b8564fa2896
+  ExpoPrint: 3fa0bd322ea8effa81893a099803c914e59ad46f
+  ExpoSharing: 032c01bb034319e2374badf082ae935be866d2e9
   FBLazyVector: 9e0cd874afd81d9a4d36679daca991b58b260d42
   Firebase: 26f6f8d460603af3df970ad505b16b15f5e2e9a1
   FirebaseAnalytics: e04e23bc070e3014aa5cf4980f9df7ce5cd79ec8
@@ -2506,6 +2562,7 @@ SPEC CHECKSUMS:
   react-native-biometrics: 43ed5b828646a7862dbc7945556446be00798e7d
   react-native-maps: 9febd31278b35cd21e4fad2cf6fa708993be5dab
   react-native-safe-area-context: 42a1b4f8774b577d03b53de7326e3d5757fe9513
+  react-native-webview: 3e303e80cadb5f17118c8c1502aa398e9287e415
   React-NativeModulesApple: a9464983ccc0f66f45e93558671f60fc7536e438
   React-oscompat: 73db7dbc80edef36a9d6ed3c6c4e1724ead4236d
   React-perflogger: 123272debf907cc423962adafcf4513320e43757

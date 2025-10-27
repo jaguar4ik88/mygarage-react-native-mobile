@@ -27,20 +27,29 @@ import Analytics from '../services/analyticsService';
 import NotificationService from '../services/notificationService';
 import FeatureGate from '../components/FeatureGate';
 
-interface RemindersScreenProps {}
+interface RemindersScreenProps {
+  navigation?: any;
+}
 
-const RemindersScreen: React.FC<RemindersScreenProps> = () => {
+const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
   const { t, language } = useLanguage();
-  const { isGuest, promptToLogin } = useAuth();
+  const { isGuest, promptToLogin, user, refreshUser } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
-  const [userId, setUserId] = useState<number | null>(null);
 
   useEffect(() => {
-    loadData();
+    if (user?.id) {
+      loadData();
+    } else if (isGuest) {
+      // Для гостевого режима показываем пустой экран без загрузки
+      setLoading(false);
+    }
+  }, [user?.id, isGuest]);
+
+  useEffect(() => {
     checkNotificationPermissions();
     
     // Устанавливаем колбэк для обновления статуса напоминаний
@@ -66,9 +75,13 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Get current user first
-      const user = await ApiService.getProfile();
-      setUserId(user.id);
+      
+      // Проверяем что user загружен
+      if (!user?.id) {
+        console.log('User not loaded yet');
+        setLoading(false);
+        return;
+      }
       
       // Load reminders
       const data = await ApiService.getReminders(user.id);
@@ -104,11 +117,11 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
   };
 
   const loadReminders = async () => {
-    if (!userId) return;
+    if (!user?.id) return;
     
     try {
       setLoading(true);
-      const data = await ApiService.getReminders(userId);
+      const data = await ApiService.getReminders(user.id);
       setReminders(data);
       
       // Планируем уведомления для всех напоминаний
@@ -152,7 +165,7 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
     );
   };
 
-  const handleAddReminder = () => {
+  const handleAddReminder = async () => {
     // Проверка на гостевой режим
     if (isGuest) {
       console.log('👤 Guest trying to add reminder, showing login prompt');
@@ -160,19 +173,8 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
       return;
     }
     
-    // Check reminder limit for free plan
-    if (reminders.length >= 5 && userId) {
-      // This would be replaced with actual user plan check
-      Alert.alert(
-        t('subscription.upgradeRequired'),
-        'Бесплатный план позволяет создать только 5 напоминаний. Обновитесь до Pro для неограниченного количества.',
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: 'Обновить', onPress: () => {/* Navigate to subscription screen */} }
-        ]
-      );
-      return;
-    }
+    // Reminder limits removed - users can delete reminders
+    // No need to check subscription limits anymore
     
     setEditingReminder(null);
     setIsModalOpen(true);
@@ -359,7 +361,7 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
         onClose={() => setIsModalOpen(false)}
         onReminderAdded={handleReminderAdded}
         editingReminder={editingReminder}
-        userId={userId}
+        userId={user?.id || null}
       />
     </SafeAreaView>
   );

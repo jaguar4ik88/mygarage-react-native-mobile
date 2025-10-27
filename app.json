@@ -26,6 +26,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to find nearby service stations.",
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate you and protect your personal data.",
+        "NSPhotoLibraryUsageDescription": "We need access to your photo library to attach photos of documents and receipts.",
+        "NSCameraUsageDescription": "We need access to your camera to take photos of documents and receipts.",
         "UIBackgroundModes": [
           "background-processing",
           "background-fetch",
@@ -62,7 +64,11 @@
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
       ],
       "config": {
         "googleMobileAdsAppId": ""

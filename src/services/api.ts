@@ -210,12 +210,21 @@ class ApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        try {
-          const text = await response.clone().text();
-          console.error('❗ Response body (first 300 chars):', text.slice(0, 300));
-        } catch {}
-        console.error('Request failed with status:', response.status);
-        console.error('Error data:', data);
+        // Check if this is a subscription limit error (not a real error, just business logic)
+        const isSubscriptionLimit = response.status === 403 && (data.upgrade_required || data.limit_reached);
+        
+        if (!isSubscriptionLimit) {
+          // Only log non-subscription errors
+          try {
+            const text = await response.clone().text();
+            console.error('❗ Response body (first 300 chars):', text.slice(0, 300));
+          } catch {}
+          console.error('Request failed with status:', response.status);
+          console.error('Error data:', data);
+        } else {
+          // Subscription limits are expected, just log minimally
+          console.log('🔒 Subscription limit reached:', data.message);
+        }
         
         // Handle validation errors (422) with detailed error messages
         if (response.status === 422 && data.errors) {
@@ -227,38 +236,53 @@ class ApiService {
               errorMessages.push(`${field}: ${messages}`);
             }
           }
-          throw new Error(errorMessages.join('\n'));
+          const error: any = new Error(errorMessages.join('\n'));
+          // Preserve all data properties
+          Object.assign(error, data);
+          throw error;
         }
         
-        throw new Error(data.message || `Request failed with status ${response.status}`);
+        // Preserve all error data properties (upgrade_required, limit_reached, etc.)
+        const error: any = new Error(data.message || `Request failed with status ${response.status}`);
+        Object.assign(error, data);
+        throw error;
       }
 
       return data;
     } catch (error) {
-      console.error('❌ API request failed:', error);
-      console.error('📱 Platform:', Platform.OS);
-      console.error('🔗 URL:', url);
-      console.error('📋 Headers:', headers);
-      console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
+      // Check if this is a subscription limit error
+      const isSubscriptionLimit = (error as any).upgrade_required || (error as any).limit_reached;
       
-      // Log to Crashlytics
-      try {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await CrashlyticsService.logApiError(
-          endpoint,
-          0, // status code unknown for network errors
-          errorMessage
-        );
-      } catch (crashError) {
-        console.error('Failed to log API error to Crashlytics:', crashError);
+      if (!isSubscriptionLimit) {
+        // Only log real errors, not subscription limits
+        console.error('❌ API request failed:', error);
+        console.error('📱 Platform:', Platform.OS);
+        console.error('🔗 URL:', url);
+        console.error('📋 Headers:', headers);
+        console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
+        
+        // Log to Crashlytics (skip subscription errors)
+        try {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          await CrashlyticsService.logApiError(
+            endpoint,
+            0, // status code unknown for network errors
+            errorMessage
+          );
+        } catch (crashError) {
+          console.error('Failed to log API error to Crashlytics:', crashError);
+        }
       }
       
-      // Notify UI to show graceful banner
-      eventBus.emit(EVENTS.API_ERROR, {
-        url,
-        method: options.method || 'GET',
-        message: error instanceof Error ? error.message : String(error),
-      });
+      // Notify UI to show graceful banner (skip subscription errors)
+      if (!isSubscriptionLimit) {
+        eventBus.emit(EVENTS.API_ERROR, {
+          url,
+          method: options.method || 'GET',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      
       throw error;
     }
   }
@@ -690,9 +714,58 @@ class ApiService {
     return response.data;
   }
 
-  async addServiceRecord(record: Partial<ServiceHistory>): Promise<ServiceHistory> {
+  async addServiceRecord(record: Partial<ServiceHistory>, receiptPhoto?: any): Promise<ServiceHistory> {
     // Get current user first
     const user = await this.getProfile();
+    
+    // If there's a receipt photo, use FormData
+    if (receiptPhoto) {
+      const formData = new FormData();
+      formData.append('vehicle_id', String(record.vehicle_id));
+      formData.append('expense_type_id', String(record.expense_type_id));
+      formData.append('description', record.description || '');
+      formData.append('cost', String(record.cost));
+      formData.append('service_date', record.service_date || '');
+      if (record.station_name) {
+        formData.append('station_name', record.station_name);
+      }
+
+      // Add receipt photo
+      const fileName = receiptPhoto.fileName || `receipt_${Date.now()}.jpg`;
+      console.log('Adding receipt photo to FormData:', {
+        fileName,
+        uri: receiptPhoto.uri,
+        type: receiptPhoto.type || 'image/jpeg'
+      });
+      formData.append('receipt_photo', {
+        uri: receiptPhoto.uri,
+        name: fileName,
+        type: receiptPhoto.type || 'image/jpeg',
+      } as any);
+
+      const token = await AsyncStorage.getItem('auth_token');
+      console.log('Sending FormData to:', `${this.baseURL}/history/${user.id}/add`);
+      const response = await fetch(`${this.baseURL}/history/${user.id}/add`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.error('Server error:', response.status, response.statusText);
+        const error = await response.json();
+        console.error('Error details:', error);
+        throw error;
+      }
+
+      const result = await response.json();
+      console.log('Server response:', result);
+      return result.data;
+    }
+
+    // Otherwise use JSON
     const response = await this.request<ServiceHistory>(`/history/${user.id}/add`, {
       method: 'POST',
       body: JSON.stringify(record),
@@ -700,9 +773,51 @@ class ApiService {
     return response.data;
   }
 
-  async updateServiceRecord(id: number, record: Partial<ServiceHistory>): Promise<ServiceHistory> {
-    // Get current user first
+  async updateServiceRecord(id: number, record: Partial<ServiceHistory>, receiptPhoto?: any): Promise<ServiceHistory> {
+    // Get current user from context instead of making new request
     const user = await this.getProfile();
+    
+    // If there's a receipt photo, use FormData
+    if (receiptPhoto) {
+      const formData = new FormData();
+      formData.append('_method', 'PUT'); // Laravel method spoofing
+      formData.append('expense_type_id', String(record.expense_type_id));
+      formData.append('description', record.description || '');
+      formData.append('cost', String(record.cost));
+      formData.append('service_date', record.service_date || '');
+      if (record.station_name) {
+        formData.append('station_name', record.station_name);
+      }
+
+      // Add receipt photo
+      const fileName = receiptPhoto.fileName || `receipt_${Date.now()}.jpg`;
+      formData.append('receipt_photo', {
+        uri: receiptPhoto.uri,
+        name: fileName,
+        type: receiptPhoto.type || 'image/jpeg',
+      } as any);
+
+      const token = await AsyncStorage.getItem('auth_token');
+      const response = await fetch(`${this.baseURL}/history/${user.id}/update/${id}`, {
+        method: 'POST', // Используем POST как в addServiceRecord
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.error('Update service record error:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to update service record: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    }
+
+    // Otherwise use JSON
     const response = await this.request<ServiceHistory>(`/history/${user.id}/update/${id}`, {
       method: 'PUT',
       body: JSON.stringify(record),
@@ -801,6 +916,118 @@ class ApiService {
     
     const response = await this.request<any[]>(url);
     return response.data;
+  }
+
+  // Subscription methods
+  async getSubscriptions(): Promise<any[]> {
+    const response = await this.request<any[]>('/subscriptions');
+    return response.data;
+  }
+
+  async getCurrentSubscription(): Promise<any> {
+    const response = await this.request<any>('/user/subscription');
+    return response.data;
+  }
+
+  async getSubscriptionFeatures(): Promise<any> {
+    const response = await this.request<any>('/user/subscription/features');
+    return response.data;
+  }
+
+  async verifySubscription(data: {
+    platform: string;
+    transaction_id: string;
+    original_transaction_id?: string;
+    receipt_data?: string;
+    subscription_type: string;
+  }): Promise<any> {
+    const response = await this.request<any>('/user/subscription/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response;
+  }
+
+  async cancelSubscription(): Promise<any> {
+    const response = await this.request<any>('/user/subscription/cancel', {
+      method: 'POST',
+    });
+    return response;
+  }
+
+  async restoreSubscription(data: {
+    platform: string;
+    original_transaction_id: string;
+  }): Promise<any> {
+    const response = await this.request<any>('/user/subscription/restore', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response;
+  }
+
+  // Vehicle Documents methods (PRO feature)
+  async getVehicleDocuments(vehicleId: number): Promise<any[]> {
+    const response = await this.request<any[]>(`/vehicles/${vehicleId}/documents`);
+    return response.data;
+  }
+
+  async uploadVehicleDocument(vehicleId: number, formData: FormData): Promise<any> {
+    const token = await AsyncStorage.getItem('auth_token');
+    
+    const response = await fetch(`${this.baseURL}/vehicles/${vehicleId}/documents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // НЕ устанавливаем Content-Type - браузер сам установит для multipart/form-data
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  async updateVehicleDocument(documentId: number, formData: FormData): Promise<any> {
+    const token = await AsyncStorage.getItem('auth_token');
+    
+    const response = await fetch(`${this.baseURL}/vehicles/documents/${documentId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  async deleteVehicleDocument(documentId: number): Promise<any> {
+    const response = await this.request<any>(`/vehicles/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+    return response;
+  }
+
+  async downloadVehicleDocument(documentId: number): Promise<any> {
+    const token = await AsyncStorage.getItem('auth_token');
+    
+    const response = await fetch(`${this.baseURL}/vehicles/documents/${documentId}/download`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return response;
   }
 }
 

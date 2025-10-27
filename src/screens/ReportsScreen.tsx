@@ -6,6 +6,7 @@ import Icon from '../components/Icon';
 import api from '../services/api';
 import { Vehicle, ServiceHistory } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 type RangeMode = 'month' | 'year';
 
@@ -18,6 +19,7 @@ const formatCurrency = (n: number) => new Intl.NumberFormat('uk-UA', { style: 'c
 
 const ReportsScreen: React.FC = () => {
   const { t } = useLanguage();
+  const { user, isGuest } = useAuth();
   const [mode, setMode] = useState<RangeMode>('month');
   const [cursor, setCursor] = useState<Date>(new Date());
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -54,20 +56,25 @@ const ReportsScreen: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const userStats = await api.getProfile();
-        const hist = await api.getExpensesHistory(userStats.id);
-        setRecords(hist);
-      } catch (error) {
-        console.error('Error loading reports data:', error);
-        setRecords([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [mode, cursor, selectedVehicleId, typeFilter]);
+    if (user?.id) {
+      (async () => {
+        setLoading(true);
+        try {
+          // Используем данные пользователя из контекста, а не делаем новый запрос
+          const hist = await api.getExpensesHistory(user.id);
+          setRecords(hist);
+        } catch (error) {
+          console.error('Error loading reports data:', error);
+          setRecords([]);
+        } finally {
+          setLoading(false);
+        }
+      })();
+    } else if (isGuest) {
+      // Для гостевого режима показываем пустой экран без загрузки
+      setLoading(false);
+    }
+  }, [user?.id, isGuest, mode, cursor, selectedVehicleId, typeFilter]);
 
   const { from, to, title } = useMemo(() => {
     if (mode === 'month') {

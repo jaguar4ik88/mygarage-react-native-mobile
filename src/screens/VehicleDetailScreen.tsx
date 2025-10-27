@@ -18,10 +18,12 @@ import Input from '../components/Input';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Icon from '../components/Icon';
 import AnimatedView from '../components/AnimatedView';
+import Paywall from '../components/Paywall';
 import { COLORS, FONTS, SPACING, ACTION_COLORS } from '../constants';
 import ApiService from '../services/api';
 import { Vehicle, Reminder, ServiceHistory } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface VehicleDetailScreenProps {
   vehicle: Vehicle;
@@ -33,6 +35,7 @@ interface VehicleDetailScreenProps {
   onNavigateToHistory: (vehicleId: number) => void;
   onNavigateToSTO: () => void;
   onNavigateToRecommendations: () => void;
+  navigation?: any;
 }
 
 const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
@@ -45,8 +48,10 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
   onNavigateToHistory,
   onNavigateToSTO,
   onNavigateToRecommendations,
+  navigation,
 }) => {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [serviceHistory, setServiceHistory] = useState<ServiceHistory[]>([]);
   const [reminderTypes, setReminderTypes] = useState<any[]>([]);
@@ -55,6 +60,7 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
   const [newMileage, setNewMileage] = useState(vehicle.mileage.toString());
   const [editingYear, setEditingYear] = useState(false);
   const [newYear, setNewYear] = useState(String(vehicle.year || ''));
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -71,8 +77,12 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
         return;
       }
       
-      // Get current user first
-      const user = await ApiService.getProfile();
+      // Используем данные пользователя из контекста
+      if (!user?.id) {
+        console.error('User not available');
+        return;
+      }
+      
       const [remindersData, historyData, typesData] = await Promise.all([
         ApiService.getReminders(user.id),
         ApiService.getServiceHistory(vehicle.id),
@@ -279,6 +289,25 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
                 iconColorOverride={ACTION_COLORS.colorAllReminders}
                 icon="advice"
               />
+              {/* Full-width Documents button */}
+              <Button
+                title={t('documents.title')}
+                onPress={() => {
+                  // Check if user has PRO subscription
+                  const isPro = user?.plan_type === 'pro' || user?.plan_type === 'premium';
+                  if (!isPro) {
+                    setShowPaywall(true);
+                    return;
+                  }
+                  navigation?.navigate('VehicleDocuments', { vehicle });
+                }}
+                variant="outline"
+                style={styles.fullWidthButton}
+                borderColorOverride={ACTION_COLORS.colorDocumentions}
+                textColorOverride={ACTION_COLORS.colorDocumentions}
+                iconColorOverride={ACTION_COLORS.colorDocumentions}
+                icon="file"
+              />
               {/* Row with Edit and Delete */}
               <View style={styles.rowButtons}>
                 <Button
@@ -362,6 +391,16 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
         
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Paywall
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onUpgrade={() => {
+          setShowPaywall(false);
+          navigation?.navigate('Subscription');
+        }}
+        feature="photo_documents"
+      />
     </SafeAreaView>
   );
 };

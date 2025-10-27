@@ -180,6 +180,7 @@ const ActionsStackScreen: React.FC = () => {
       <Stack.Screen name="ActionsRoot" options={{ title: t('actions.title') }}>
         {({ navigation }) => (
           <ActionsScreen
+            navigation={navigation}
             onNavigateToReminders={() => {
               // Navigate to Reminders tab
               navigation.getParent()?.navigate('Reminders');
@@ -195,6 +196,10 @@ const ActionsStackScreen: React.FC = () => {
             onNavigateToRecommendations={() => {
               // Navigate to Recommendations in main stack
               navigation.getParent()?.getParent()?.navigate('Recommendations');
+            }}
+            onNavigateToExport={() => {
+              // Navigate to Export screen in main stack
+              navigation.getParent()?.getParent()?.navigate('Export');
             }}
             onNavigateToFamilyGarage={() => {}}
             onNavigateToLocation={() => {}}

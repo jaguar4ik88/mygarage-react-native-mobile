@@ -8,10 +8,12 @@ import Icon from '../components/Icon';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Vehicle } from '../types';
 
 const RecommendationsScreen: React.FC = () => {
   const { t, language } = useLanguage();
+  const { user, isGuest } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -22,8 +24,13 @@ const RecommendationsScreen: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
   useEffect(() => {
-    loadVehicles();
-  }, []);
+    if (user?.id) {
+      loadVehicles();
+    } else if (isGuest) {
+      // Для гостевого режима показываем пустой экран без загрузки
+      setLoading(false);
+    }
+  }, [user?.id, isGuest]);
 
   useEffect(() => {
     if (vehicles.length > 0) {

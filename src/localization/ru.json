@@ -2,6 +2,7 @@
   "common": {
     "save": "Сохранить",
     "cancel": "Отмена",
+    "select": "Выбрать",
     "delete": "Удалить",
     "edit": "Редактировать",
     "add": "Добавить",
@@ -26,7 +27,8 @@
     "locale": "ru",
     "comingSoon": "Скоро",
     "comingSoonDescription": "будет доступно в следующих обновлениях",
-    "noVehicles": "Нет автомобилей"
+    "noVehicles": "Нет автомобилей",
+    "errorLoading": "Ошибка загрузки данных"
   },
   "recommendations": {
     "missingYearTitle": "Укажите год авто",
@@ -233,7 +235,10 @@
     "unknownVehicle": "Неизвестный автомобиль",
     "kilometers": "км",
     "noMoreRecords": "Больше записей нет",
-    "other": "Другое"
+    "other": "Другое",
+    "exportPdf": "Экспорт отчета",
+    "pdfExported": "PDF экспортирован",
+    "pdfExportFailed": "Не удалось экспортировать PDF"
   },
   "manual": {
     "title": "Руководство",
@@ -356,6 +361,7 @@
     "register": "Регистрация",
     "email": "Email",
     "password": "Пароль",
+    "authRequired": "Необходима авторизация",
     "confirmPassword": "Подтвердите пароль",
     "forgotPassword": "Забыли пароль?",
     "noAccount": "Нет аккаунта?",
@@ -457,6 +463,12 @@
     "familyGarageDescription": "Управление несколькими автомобилями семьи",
     "familyPopupTitle": "Семейный гараж",
     "familyPopupText": "Эта функция появится в ближайших обновлениях.",
+    "aiAssistant": "AI помощник",
+    "aiAssistantDescription": "Умный помощник для автомобиля",
+    "trips": "Поездки",
+    "tripsDescription": "История поездок",
+    "pdfExport": "Экспорт в PDF",
+    "pdfExportDescription": "Экспорт всех расходов в PDF",
     "vehicleLocation": "Геолокация авто",
     "vehicleLocationDescription": "Отслеживание местоположения автомобиля",
     "locationPopupTitle": "Геолокация авто",
@@ -478,61 +490,183 @@
     "totalExpenses": "Общие расходы"
   },
   "subscription": {
-    "featureLocked": "Функция заблокирована",
-    "upgradeRequired": "Требуется план {plan}",
-    "upgradeTo": "Обновить до {plan}",
+    "title": "Подписки",
+    "selectPlan": "Выберите подходящий тариф",
+    "popular": "ПОПУЛЯРНЫЙ",
+    "current": "ТЕКУЩИЙ",
+    "comingSoon": "СКОРО",
+    "comingSoonMessage": "Этот тариф пока в разработке. Следите за обновлениями!",
     "currentPlan": "Текущий план",
+    "select": "Выбрать",
+    "purchase": "Покупка подписки",
+    "purchaseConfirm": "Приобрести",
+    "for": "за",
+    "buy": "Купить",
+    "success": "Успех!",
+    "activated": "Подписка",
+    "successfullyActivated": "успешно активирована!",
+    "purchaseError": "Не удалось приобрести подписку",
+    "info": "Информация",
+    "alreadyActive": "У вас уже активна эта подписка",
+    "freePlan": "Это бесплатный тариф",
+    "restorePurchases": "Восстановить покупки",
+    "restoreMessage": "Эта функция будет доступна после интеграции с магазином приложений",
+    "autoRenewInfo": "Подписка будет автоматически продлена, если не отменить ее за 24 часа до окончания периода.",
+    "processing": "Обработка покупки...",
+    "upTo": "До",
+    "car": "авто",
+    "cars": "авто",
+    "reminders": "напоминаний",
+    "unlimitedReminders": "Безлимит напоминаний",
+    "more": "еще...",
+    "upgradeRequired": "Требуется обновление",
+    "featureLocked": "Функция заблокирована",
+    "upgradeTo": "Обновить до {plan}",
     "free": "Бесплатный",
     "pro": "Pro",
     "premium": "Premium",
     "business": "Business",
-    "plans": {
-      "free": {
-        "name": "Бесплатный",
-        "price": "0₴/месяц",
-        "features": [
-          "1 автомобиль",
-          "5 напоминаний",
-          "Поиск СТО",
-          "Базовое руководство"
-        ]
-      },
-      "pro": {
-        "name": "Pro",
-        "price": "99₴/месяц",
-        "features": [
-          "3 автомобиля",
-          "Неограниченные напоминания",
-          "Фото документов",
-          "Учет заправок",
-          "Учет пробега",
-          "Расширенная аналитика",
-          "Экспорт данных"
-        ]
-      },
-      "premium": {
-        "name": "Premium",
-        "price": "199₴/месяц",
-        "features": [
-          "Неограниченные автомобили",
-          "GPS интеграция",
-          "OBD диагностика",
-          "AI ассистент",
-          "Чек-листы",
-          "Облачное резервное копирование"
-        ]
-      },
-      "business": {
-        "name": "Business",
-        "price": "499₴/месяц",
-        "features": [
-          "Управление клиентами",
-          "Отчеты по СТО",
-          "Интеграция с 1С",
-          "Мобильное приложение для мастеров",
-          "Бизнес аналитика"
-        ]
-      }
+    "features": {
+      "vehiclesManagement": "До 3 автомобилей",
+      "vehiclesManagementDesc": "Управляйте до 3 автомобилями в приложении",
+      "basicReminders": "Базовые напоминания",
+      "stoSearch": "Поиск СТО",
+      "advice": "Советы",
+      "profileSettings": "Профиль и настройки",
+      "modelRecommendations": "Рекомендации по модели",
+      "expensesStatistics": "Статистика расходов",
+      "expensesHistory": "История расходов",
+      "photoDocuments": "Фото документов",
+      "photoDocumentsDesc": "Храните фотографии всех документов автомобиля (страховка, доверенность, сертификаты) в одном месте",
+      "receiptPhotos": "Фото чеков",
+      "receiptPhotosDesc": "Прикрепляйте фотографии чеков к каждой трате для удобного учета",
+      "pdfExport": "Экспорт в PDF",
+      "pdfExportDesc": "Экспортируйте отчеты о тратах в PDF формат для печати или отправки",
+      "unlimitedReminders": "Безлимит напоминаний",
+      "unlimitedRemindersDesc": "Создавайте неограниченное количество напоминаний для своих автомобилей",
+      "expenseReminders": "Напоминания о расходах",
+      "aiAssistant": "AI помощник",
+      "trips": "Учет поездок",
+      "fuelTracking": "Учет заправок",
+      "mileageTracking": "Учет пробега",
+      "smartReminders": "Умные напоминания",
+      "cloudStorage": "Облачное хранилище"
     }
+  },
+  "paywall": {
+    "proFeature": "PRO функция",
+    "proFeatureDescription": "Эта функция доступна только для PRO подписчиков",
+    "whatYouGet": "Что вы получите с PRO:",
+    "benefitVehicles": "До 3 автомобилей",
+    "benefitReminders": "Безлимит напоминаний",
+    "benefitDocuments": "Фото документов и чеков",
+    "benefitPdf": "Экспорт отчетов в PDF",
+    "benefitNotifications": "Напоминания о добавлении расходов",
+    "perMonth": "/месяц",
+    "upgradeToPro": "Перейти на PRO",
+    "noThanks": "Нет, спасибо"
+  },
+  "expenseModal": {
+    "title": "Добавить трату",
+    "editTitle": "Редактировать трату",
+    "vehicle": "Автомобиль",
+    "vehicleRequired": "Выберите автомобиль",
+    "expenseType": "Тип траты",
+    "description": "Описание",
+    "cost": "Сумма",
+    "costRequired": "Введите сумму",
+    "costMustBeNumber": "Сумма должна быть числом",
+    "date": "Дата",
+    "dateRequired": "Укажите дату",
+    "station": "СТО",
+    "receiptPhoto": "Фото чека",
+    "receiptProOnly": "Доступно с PRO подпиской",
+    "takePhoto": "Сделать фото",
+    "chooseFromGallery": "Выбрать из галереи",
+    "deletePhoto": "Удалить фото",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "error": "Ошибка",
+    "saveError": "Не удалось сохранить",
+    "required": "*"
+  },
+  "documents": {
+    "title": "Документы",
+    "noDocuments": "Нет документов",
+    "noDocumentsText": "Добавьте фотографии страховки, доверенности или других документов",
+    "addDocument": "Добавить документ",
+    "selectPhoto": "Выбрать фото",
+    "selectFile": "Выбрать файл",
+    "documentName": "Название документа",
+    "documentNamePlaceholder": "Например: Страховка ОСАГО",
+    "documentType": "Тип документа",
+    "expiryDate": "Дата окончания",
+    "expiryDatePlaceholder": "ДД.ММ.ГГГГ",
+    "notes": "Примечания",
+    "notesPlaceholder": "Дополнительная информация",
+    "selectedFile": "Выбран файл",
+    "uploading": "Загрузка...",
+    "expires": "Истекает",
+    "types": {
+      "insurance": "Страховка",
+      "power_of_attorney": "Доверенность",
+      "certificate": "Сертификат",
+      "other": "Другое"
+    },
+    "errors": {
+      "permissionDenied": "Необходимо разрешение для доступа к фото",
+      "nameRequired": "Введите название документа",
+      "fileRequired": "Выберите файл",
+      "uploadFailed": "Не удалось загрузить документ",
+      "loadFailed": "Не удалось загрузить документы",
+      "deleteFailed": "Не удалось удалить документ",
+      "fileNotAvailable": "Файл недоступен",
+      "fileNotFound": "Файл не найден на сервере",
+      "fileCheckFailed": "Не удалось проверить доступность файла",
+      "downloadFailed": "Не удалось скачать документ",
+      "viewFailed": "Не удалось открыть документ"
+    },
+    "delete": {
+      "title": "Удалить документ?",
+      "message": "Это действие необратимо",
+      "confirm": "Удалить",
+      "cancel": "Отмена"
+    },
+    "success": {
+      "uploaded": "Документ загружен",
+      "deleted": "Документ удален"
+    },
+    "saveDocument": "Сохранить документ",
+    "downloaded": "Скачано",
+    "loading": "Загрузка...",
+    "openInBrowser": "Открыть в браузере"
+  },
+    "export": {
+    "title": "Экспорт данных",
+    "selectAll": "Выбрать все авто",
+    "deselectAll": "Снять все",
+    "records": "записей",
+    "statsForSelected": "Статистика по выбранным авто:",
+    "selectAtLeastOne": "Выберите хотя бы одно авто",
+    "exportPdf": "Экспорт в PDF"
+  },
+  "notifications": {
+    "expenseReminderTitle": "MyGarage",
+    "expenseReminderBody": "Не забудьте добавить записи о тратах на автомобиль"
+  },
+  "pdfExport": {
+    "title": "Отчет по расходам (Expenses Report)",
+    "generatedOn": "Дата формирования",
+    "totalRecords": "Всего записей",
+    "totalSpent": "Всего потрачено",
+    "thisYear": "В этом году",
+    "thisMonth": "В этом месяце",
+    "date": "Дата",
+    "vehicle": "Автомобиль",
+    "description": "Описание",
+    "type": "Тип",
+    "amount": "Сумма",
+    "total": "Итого:",
+    "generatedBy": "Сгенерировано через myGarage"
   }
 }

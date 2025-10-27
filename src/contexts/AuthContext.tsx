@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ApiService from '../services/api';
 import BiometricService from '../services/biometricService';
 import Analytics from '../services/analyticsService';
+import NotificationService from '../services/notificationService';
 import { User } from '../types';
 
 interface AuthState {
@@ -21,6 +22,7 @@ interface AuthContextType extends AuthState {
   continueAsGuest: () => Promise<void>;
   promptToLogin: () => void;
   checkAutoLogin: () => Promise<boolean>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -78,6 +80,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
             user,
             isLoading: false,
           });
+          
+          // Инициализируем уведомления о тратах для уже залогиненного пользователя
+          if (user?.id) {
+            await NotificationService.initializeExpenseReminders(user.id);
+          }
         } catch (error) {
           console.error('Error loading user data:', error);
           setState({
@@ -135,10 +142,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
           isLoading: false,
         });
         
+        // Инициализируем уведомления о тратах
+        if (response.user?.id) {
+          await NotificationService.initializeExpenseReminders(response.user.id);
+        }
+        
         await Analytics.track('auth_login_success', { method: 'email' });
       }
     } catch (error) {
-      await Analytics.track('auth_login_failed', { method: 'email' });
+      await Analytics.track('auth_login_failed' as any, { method: 'email' });
       throw error;
     }
   };
@@ -165,10 +177,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
           isLoading: false,
         });
         
+        // Инициализируем уведомления о тратах
+        if (response.user?.id) {
+          await NotificationService.initializeExpenseReminders(response.user.id);
+        }
+        
         await Analytics.track('auth_login_success', { method: 'google' });
       }
     } catch (error) {
-      await Analytics.track('auth_login_failed', { method: 'google' });
+      await Analytics.track('auth_login_failed' as any, { method: 'google' });
       throw error;
     }
   };
@@ -195,10 +212,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
           isLoading: false,
         });
         
+        // Инициализируем уведомления о тратах
+        if (response.user?.id) {
+          await NotificationService.initializeExpenseReminders(response.user.id);
+        }
+        
         await Analytics.track('auth_login_success', { method: 'apple' });
       }
     } catch (error) {
-      await Analytics.track('auth_login_failed', { method: 'apple' });
+      await Analytics.track('auth_login_failed' as any, { method: 'apple' });
       throw error;
     }
   };
@@ -229,16 +251,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
           isLoading: false,
         });
         
+        // Инициализируем уведомления о тратах
+        if (response.user?.id) {
+          await NotificationService.initializeExpenseReminders(response.user.id);
+        }
+        
         await Analytics.track('auth_register_success');
       }
     } catch (error) {
-      await Analytics.track('auth_register_failed');
+      await Analytics.track('auth_register_failed' as any);
       throw error;
     }
   };
 
   const logout = async () => {
     try {
+      // Отменяем уведомления о тратах при выходе
+      await NotificationService.cancelExpenseRemindersOnLogout();
+      
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('user_data');
       await AsyncStorage.removeItem('guest_mode');
@@ -254,7 +284,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
         isLoading: false,
       });
       
-      await Analytics.track('auth_logout');
+      await Analytics.track('auth_logout' as any);
     } catch (error) {
       console.error('Error during logout:', error);
     }
@@ -271,20 +301,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
         isLoading: false,
       });
       
-      await Analytics.track('auth_continue_as_guest');
+      await Analytics.track('auth_continue_as_guest' as any);
     } catch (error) {
       console.error('Error setting guest mode:', error);
     }
   };
 
   const promptToLogin = () => {
-    console.log('🔔 promptToLogin called, onLoginPrompt exists:', !!onLoginPrompt);
-    Analytics.track('login_prompt_shown');
+    Analytics.track('login_prompt_shown' as any);
     if (onLoginPrompt) {
-      console.log('🔔 Calling onLoginPrompt callback');
       onLoginPrompt();
-    } else {
-      console.warn('⚠️ onLoginPrompt callback is not defined!');
     }
   };
 
@@ -293,15 +319,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
       // Проверяем есть ли уже токен
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
-        // Уже залогинен - просто возвращаем true, НЕ запускаем биометрию автоматически
-        // Биометрия должна запускаться только при ручном запросе из AuthScreen
-        console.log('User already has token, skipping auto-login');
         return true;
       }
 
-      // Если токена нет - не показываем биометрию автоматически
-      // Пользователь должен сам выбрать: войти, зарегистрироваться или продолжить как гость
-      console.log('No token found, user needs to choose login method');
       return false;
     } catch (error) {
       console.error('Error during auto login:', error);
@@ -316,9 +336,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
       await AsyncStorage.removeItem('guest_vehicles');
       await AsyncStorage.removeItem('guest_expenses');
       await AsyncStorage.removeItem('guest_reminders');
-      console.log('Guest data cleared');
     } catch (error) {
       console.error('Error clearing guest data:', error);
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      if (!state.isAuthenticated || state.isGuest) {
+        return;
+      }
+
+      // Получаем свежие данные пользователя с сервера
+      const userData = await ApiService.getProfile();
+      
+      // Сохраняем в AsyncStorage
+      await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+      
+      // Обновляем состояние
+      setState(prev => ({
+        ...prev,
+        user: userData,
+      }));
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
     }
   };
 
@@ -332,6 +373,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
     continueAsGuest,
     promptToLogin,
     checkAutoLogin,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -23,7 +23,8 @@ export type AnalyticsEventName =
   | 'sto_add_favorite'
   | 'sto_route_opened'
   | 'manual_section_toggle'
-  | 'manual_pdf_open';
+  | 'manual_pdf_open'
+  | 'pdf_export';
 
 export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined>;
 

@@ -7,7 +7,7 @@ export const COLORS = {
   textSecondary: '#9898a0',
   textMuted: '#686464',
   accent: '#f87272',
-  primary: '#b83939',
+  primary: '#db4444',
   secondary: '#9898a0',
   success: '#8bfa8b',
   warning: '#b83939',
@@ -25,6 +25,8 @@ export const ACTION_COLORS = {
   colorSTO: '#06b6d4',
   colorAllReminders: '#f97316',
   colorDelete: '#ef4444',
+  colorDocumentions: '#73dce7',
+  colorDownload: '#facc15',
 };
 
 export const FONTS = {
