@@ -60,9 +60,6 @@ const ApiErrorBanner: React.FC = () => {
       <View style={styles.banner}>
         <View style={styles.content}>
           <Icon name="error" size={20} color="#FFFFFF" />
-          <Text style={styles.message}>
-            Извините, данные сейчас недоступны, попробуйте позже
-          </Text>
         </View>
         <TouchableOpacity onPress={handleDismiss} style={styles.dismissButton}>
           <Icon name="close" size={20} color="#FFFFFF" />

@@ -11,7 +11,7 @@ import {
   Modal,
   KeyboardAvoidingView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Card from './Card';
 import Button from './Button';
 import Icon from './Icon';
@@ -38,6 +38,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
   userId,
 }) => {
   const { t, language } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [reminderTypes, setReminderTypes] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState<Reminder['type']>('oil');
@@ -189,6 +190,8 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.xxl }}
           >
               <View style={styles.form}>
                 {/* Type Selection */}

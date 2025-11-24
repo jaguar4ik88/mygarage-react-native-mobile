@@ -12,13 +12,13 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import Icon from './Icon';
 import Input from './Input';
 import DateInput from './DateInput';
 import Button from './Button';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
 import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -46,6 +46,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
   isPro,
 }) => {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [formData, setFormData] = useState({
     vehicle_id: '',
     expense_type_id: '',
@@ -69,7 +70,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
     // Сначала попробуем через новый API эндпоинт для чеков
     if (editingRecord?.id) {
-      const apiUrl = `https://mygarage.uno/api/expenses/${editingRecord.id}/receipt`;
+      const apiUrl = `${BASE_URL}/api/expenses/${editingRecord.id}/receipt`;
       
       try {
         const response = await fetch(apiUrl, { method: 'HEAD' });
@@ -82,11 +83,11 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
     }
 
     const baseUrls = [
-      'https://mygarage.uno/storage/',  // Основной домен (через симлинк)
-      'https://mygarage.uno/api/storage/',  // API эндпоинт для фото
-      'https://mygarage.uno/public/storage/',  // Через public/storage
-      'https://mygarage.uno/www/storage/app/public/',  // Прямой путь
-      'https://mygarage.app/storage/'   // Альтернативный домен
+      `${BASE_URL}/storage/`,  // Основной домен (через симлинк)
+      `${BASE_URL}/api/storage/`,  // API эндпоинт для фото
+      `${BASE_URL}/public/storage/`,  // Через public/storage
+      `${BASE_URL}/www/storage/app/public/`,  // Прямой путь
+      'https://mygarage.app/storage/'   // Альтернативный домен (fallback)
     ];
 
     // Попробуем все URL по очереди
@@ -256,6 +257,185 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
     }
   };
 
+  const renderContent = () => (
+    <View style={styles.content}>
+      {/* Выбор автомобиля */}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>{t('expenseModal.vehicle')} {t('expenseModal.required')}</Text>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled={true}
+        >
+          {vehicles.map((vehicle) => (
+            <TouchableOpacity
+              key={vehicle.id}
+              style={[
+                styles.vehicleOption,
+                formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionActive,
+              ]}
+              onPress={() => handleInputChange('vehicle_id', vehicle.id.toString())}
+            >
+              <Text style={[
+                styles.vehicleOptionText,
+                formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionTextActive,
+              ]}>
+                {vehicle.make} {vehicle.model}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        {errors.vehicle_id && <Text style={styles.errorText}>{errors.vehicle_id}</Text>}
+      </View>
+
+      {/* Тип траты */}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>{t('expenseModal.expenseType')} {t('expenseModal.required')}</Text>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled={true}
+        >
+          {expenseTypes.map((type) => (
+            <TouchableOpacity
+              key={type.id}
+              style={[
+                styles.typeOption,
+                formData.expense_type_id === type.id.toString() && styles.typeOptionActive,
+              ]}
+              onPress={() => handleInputChange('expense_type_id', type.id.toString())}
+            >
+              <Text style={[
+                styles.typeOptionText,
+                formData.expense_type_id === type.id.toString() && styles.typeOptionTextActive,
+              ]}>
+                {type.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        {errors.expense_type_id && <Text style={styles.errorText}>{errors.expense_type_id}</Text>}
+      </View>
+
+      <Input
+        label={`${t('expenseModal.cost')} ${t('expenseModal.required')}`}
+        value={formData.cost}
+        onChangeText={(value) => handleInputChange('cost', value)}
+        keyboardType="numeric"
+        placeholder={`0 ${userCurrency}`}
+        error={errors.cost}
+      />
+
+      <DateInput
+        label={t('expenseModal.date')}
+        value={formData.service_date}
+        onDateChange={(value: string) => handleInputChange('service_date', value)}
+        error={errors.service_date}
+      />
+
+      <Input
+        label={t('expenseModal.description')}
+        value={formData.description}
+        onChangeText={(value) => handleInputChange('description', value)}
+        placeholder={t('expenseModal.description')}
+        multiline
+        numberOfLines={3}
+      />
+
+      {/* Фото чека (PRO) */}
+      <View style={styles.formGroup}>
+        <View style={styles.receiptHeader}>
+          <Text style={styles.label}>{t('expenseModal.receiptPhoto')}</Text>
+          {!isPro && (
+            <View style={styles.proBadge}>
+              <Text style={styles.proBadgeText}>PRO</Text>
+            </View>
+          )}
+        </View>
+
+        {isPro ? (
+          <>
+            <View style={styles.receiptButtons}>
+              <TouchableOpacity
+                style={styles.receiptButton}
+                onPress={takeReceiptPhoto}
+              >
+                <Icon name="camera" size={24} color={COLORS.accent} />
+                <Text style={styles.receiptButtonText}>{t('expenseModal.takePhoto')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.receiptButton}
+                onPress={pickReceiptPhoto}
+              >
+                <Icon name="image" size={24} color={COLORS.accent} />
+                <Text style={styles.receiptButtonText}>{t('expenseModal.chooseFromGallery')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {receiptPhoto && (
+              <View style={styles.receiptPreview}>
+                <TouchableOpacity
+                  onPress={() => setShowImageModal(true)}
+                  style={styles.imageContainer}
+                >
+                  <Image
+                    source={{ 
+                      uri: imageError 
+                        ? 'https://via.placeholder.com/300x200/ff0000/ffffff?text=Image+Not+Found'
+                        : currentImageUrl || receiptPhoto.uri 
+                    }}
+                    style={styles.receiptImage}
+                    resizeMode="cover"
+                    onError={() => {
+                      setImageError(true);
+                    }}
+                    onLoad={() => {
+                      setImageError(false);
+                    }}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.removeReceiptButton}
+                  onPress={() => {
+                    setReceiptPhoto(null);
+                    setCurrentImageUrl('');
+                    setImageError(false);
+                  }}
+                >
+                  <Icon name="close" size={20} color={COLORS.background} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.lockedFeature}>
+            <Icon name="lock" size={32} color={COLORS.textMuted} />
+            <Text style={styles.lockedText}>
+              {t('expenseModal.receiptProOnly')}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.modalButtons}>
+        <Button
+          title={t('expenseModal.cancel')}
+          onPress={onClose}
+          variant="outline"
+          disabled={loading}
+          style={{ flex: 1, marginRight: SPACING.sm }}
+        />
+        <Button
+          title={loading ? `${t('expenseModal.save')}...` : t('expenseModal.save')}
+          onPress={handleSubmitForm}
+          disabled={loading}
+          style={{ flex: 1 }}
+        />
+      </View>
+    </View>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -264,196 +444,56 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
       onRequestClose={onClose}
     >
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Icon name="close" size={20} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.title}>
-              {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
-            </Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          <ScrollView
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+        {Platform.OS === 'ios' ? (
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoidingView}
+            behavior="padding"
+            keyboardVerticalOffset={0}
           >
-            <View style={styles.content}>
-              {/* Выбор автомобиля */}
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>{t('expenseModal.vehicle')} {t('expenseModal.required')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {vehicles.map((vehicle) => (
-                    <TouchableOpacity
-                      key={vehicle.id}
-                      style={[
-                        styles.vehicleOption,
-                        formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionActive,
-                      ]}
-                      onPress={() => handleInputChange('vehicle_id', vehicle.id.toString())}
-                    >
-                      <Text style={[
-                        styles.vehicleOptionText,
-                        formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionTextActive,
-                      ]}>
-                        {vehicle.make} {vehicle.model}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                {errors.vehicle_id && <Text style={styles.errorText}>{errors.vehicle_id}</Text>}
-              </View>
-
-              {/* Тип траты */}
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>{t('expenseModal.expenseType')} {t('expenseModal.required')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {expenseTypes.map((type) => (
-                    <TouchableOpacity
-                      key={type.id}
-                      style={[
-                        styles.typeOption,
-                        formData.expense_type_id === type.id.toString() && styles.typeOptionActive,
-                      ]}
-                      onPress={() => handleInputChange('expense_type_id', type.id.toString())}
-                    >
-                      <Text style={[
-                        styles.typeOptionText,
-                        formData.expense_type_id === type.id.toString() && styles.typeOptionTextActive,
-                      ]}>
-                        {type.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                {errors.expense_type_id && <Text style={styles.errorText}>{errors.expense_type_id}</Text>}
-              </View>
-
-              <Input
-                label={`${t('expenseModal.cost')} ${t('expenseModal.required')}`}
-                value={formData.cost}
-                onChangeText={(value) => handleInputChange('cost', value)}
-                keyboardType="numeric"
-                placeholder={`0 ${userCurrency}`}
-                error={errors.cost}
-              />
-
-              <DateInput
-                label={t('expenseModal.date')}
-                value={formData.service_date}
-                onDateChange={(value: string) => handleInputChange('service_date', value)}
-                error={errors.service_date}
-              />
-
-              <Input
-                label={t('expenseModal.description')}
-                value={formData.description}
-                onChangeText={(value) => handleInputChange('description', value)}
-                placeholder={t('expenseModal.description')}
-                multiline
-                numberOfLines={3}
-              />
-
-
-              {/* Фото чека (PRO) */}
-              <View style={styles.formGroup}>
-                <View style={styles.receiptHeader}>
-                  <Text style={styles.label}>{t('expenseModal.receiptPhoto')}</Text>
-                  {!isPro && (
-                    <View style={styles.proBadge}>
-                      <Text style={styles.proBadgeText}>PRO</Text>
-                    </View>
-                  )}
-                </View>
-
-                {isPro ? (
-                  <>
-                    <View style={styles.receiptButtons}>
-                      <TouchableOpacity
-                        style={styles.receiptButton}
-                        onPress={takeReceiptPhoto}
-                      >
-                        <Icon name="camera" size={24} color={COLORS.accent} />
-                        <Text style={styles.receiptButtonText}>{t('expenseModal.takePhoto')}</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.receiptButton}
-                        onPress={pickReceiptPhoto}
-                      >
-                        <Icon name="image" size={24} color={COLORS.accent} />
-                        <Text style={styles.receiptButtonText}>{t('expenseModal.chooseFromGallery')}</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {receiptPhoto && (
-                      <View style={styles.receiptPreview}>
-                        <TouchableOpacity
-                          onPress={() => setShowImageModal(true)}
-                          style={styles.imageContainer}
-                        >
-                          <Image
-                            source={{ 
-                              uri: imageError 
-                                ? 'https://via.placeholder.com/300x200/ff0000/ffffff?text=Image+Not+Found'
-                                : currentImageUrl || receiptPhoto.uri 
-                            }}
-                            style={styles.receiptImage}
-                            resizeMode="cover"
-                            onError={() => {
-                              setImageError(true);
-                            }}
-                            onLoad={() => {
-                              setImageError(false);
-                            }}
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.removeReceiptButton}
-                          onPress={() => {
-                            setReceiptPhoto(null);
-                            setCurrentImageUrl('');
-                            setImageError(false);
-                          }}
-                        >
-                          <Icon name="close" size={20} color={COLORS.background} />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <View style={styles.lockedFeature}>
-                    <Icon name="lock" size={32} color={COLORS.textMuted} />
-                    <Text style={styles.lockedText}>
-                      {t('expenseModal.receiptProOnly')}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.modalButtons}>
-                <Button
-                  title={t('expenseModal.cancel')}
-                  onPress={onClose}
-                  variant="outline"
-                  disabled={loading}
-                  style={{ flex: 1, marginRight: SPACING.sm }}
-                />
-                <Button
-                  title={loading ? `${t('expenseModal.save')}...` : t('expenseModal.save')}
-                  onPress={handleSubmitForm}
-                  disabled={loading}
-                  style={{ flex: 1 }}
-                />
-              </View>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Icon name="close" size={20} color={COLORS.text} />
+              </TouchableOpacity>
+              <Text style={styles.title}>
+                {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
+              </Text>
+              <View style={{ width: 40 }} />
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              automaticallyAdjustKeyboardInsets={true}
+            >
+              {renderContent()}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        ) : (
+          <>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Icon name="close" size={20} color={COLORS.text} />
+              </TouchableOpacity>
+              <Text style={styles.title}>
+                {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
+              </Text>
+              <View style={{ width: 40 }} />
+            </View>
+
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+            >
+              {renderContent()}
+            </ScrollView>
+          </>
+        )}
       </SafeAreaView>
       
       {/* Модальное окно для увеличения фото */}
@@ -516,6 +556,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: SPACING.xxl,
   },
   content: {
     padding: SPACING.lg,

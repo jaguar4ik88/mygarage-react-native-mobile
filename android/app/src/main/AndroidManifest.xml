@@ -9,6 +9,13 @@
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  
+  <!-- Advertising ID declaration for Android 13+ -->
+  <!-- This app does NOT use advertising ID for advertising purposes -->
+  <!-- Firebase Analytics may use it for analytics only -->
+  <!-- Declaration required by Google Play for Android 13+ -->
+  <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
+  
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../components/Icon';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import ApiService from '../services/api';
 
@@ -193,9 +193,9 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onBack }) => 
 
   const openWebPrivacy = () => {
     const urls = {
-      ru: 'https://mygarage.uno/privacy-ru',
-      uk: 'https://mygarage.uno/privacy-uk', 
-      en: 'https://mygarage.uno/privacy-en'
+      ru: `${BASE_URL}/privacy-ru`,
+      uk: `${BASE_URL}/privacy-uk`, 
+      en: `${BASE_URL}/privacy-en`
     };
     const url = urls[language as keyof typeof urls] || urls.en;
     Linking.openURL(url);

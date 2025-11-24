@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -32,6 +33,8 @@ const AdviceScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      // Загружаем данные в фоне, не блокируя отображение экрана
+      setLoading(false); // Показываем экран сразу
       loadAdvice();
       loadSections();
     }, [language])
@@ -50,7 +53,7 @@ const AdviceScreen: React.FC = () => {
 
   const loadAdvice = async () => {
     try {
-      setLoading(true);
+      // Не устанавливаем loading=true, чтобы экран уже был виден
       const apiAdvice = await ApiService.getAdvice(language);
       const sections = Array.isArray(apiAdvice?.sections) ? apiAdvice.sections : [];
       if (sections.length === 0) {
@@ -82,7 +85,7 @@ const AdviceScreen: React.FC = () => {
     } catch (e) {
       console.error('Advice API error:', e);
       setAdviceData({});
-      Alert.alert(t('advice.error'), t('advice.failedToLoad'));
+      // Не показываем Alert при первой загрузке, только при ошибке обновления
     } finally {
       setLoading(false);
     }
@@ -130,10 +133,6 @@ const AdviceScreen: React.FC = () => {
     );
   }, [adviceData, selectedSection, debouncedSearch]);
 
-  if (loading) {
-    return <LoadingSpinner text={t('advice.loading')} />;
-  }
-
   const hasItems = !!filteredAdviceData && Object.keys(filteredAdviceData).length > 0;
 
   return (
@@ -141,8 +140,13 @@ const AdviceScreen: React.FC = () => {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing || loading} onRefresh={handleRefresh} />}
       >
+        {loading && !refreshing && (
+          <View style={styles.loadingIndicator}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+          </View>
+        )}
         {sections.length > 0 && (
           <Card style={styles.filterCard}>
             <Text style={styles.filterTitle}>{t('advice.filterBySection')}</Text>
@@ -367,6 +371,10 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: COLORS.text,
     fontWeight: 'bold',
+  },
+  loadingIndicator: {
+    padding: SPACING.md,
+    alignItems: 'center',
   },
 });
 

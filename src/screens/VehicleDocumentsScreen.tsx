@@ -317,34 +317,37 @@ const VehicleDocumentsScreen: React.FC<VehicleDocumentsScreenProps> = ({
   return (
     <SafeAreaView style={styles.container} edges={['left','right']}>
       {documents.length === 0 ? (
-        <ScrollView
-          style={styles.scrollView}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={COLORS.accent}
-            />
-          }
-        >
-          <Card style={styles.emptyCard}>
-            <View style={styles.emptyState}>
-              <Icon name="file" size={64} color={COLORS.textMuted} />
-              <Text style={styles.emptyTitle}>{t('documents.noDocuments')}</Text>
-              <Text style={styles.emptyText}>
-                {t('documents.noDocumentsText')}
-              </Text>
-            </View>
-          </Card>
+        <>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.emptyScrollContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={COLORS.accent}
+              />
+            }
+          >
+            <Card style={styles.emptyCard}>
+              <View style={styles.emptyState}>
+                <Icon name="file" size={48} color={COLORS.textMuted} />
+                <Text style={styles.emptyTitle}>{t('documents.noDocuments')}</Text>
+                <Text style={styles.emptyText}>
+                  {t('documents.noDocumentsText')}
+                </Text>
+              </View>
+            </Card>
+          </ScrollView>
 
           <TouchableOpacity
-            style={styles.addButton}
+            style={styles.fabAddButton}
             onPress={() => setIsModalOpen(true)}
+            activeOpacity={0.8}
           >
-            <Icon name="plus" size={24} color="white" />
-            <Text style={styles.addButtonText}>{t('documents.addDocument')}</Text>
+            <Icon name="plus" size={24} color={COLORS.background} />
           </TouchableOpacity>
-        </ScrollView>
+        </>
       ) : (
         <FlatList
           data={documents}
@@ -389,6 +392,16 @@ const VehicleDocumentsScreen: React.FC<VehicleDocumentsScreenProps> = ({
             </Card>
           }
         />
+      )}
+
+      {documents.length > 0 && (
+        <TouchableOpacity
+          style={styles.fabAddButton}
+          onPress={() => setIsModalOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Icon name="plus" size={24} color={COLORS.background} />
+        </TouchableOpacity>
       )}
 
       <DocumentModal
@@ -600,24 +613,22 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
   },
   emptyState: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: SPACING.xl,
-    marginTop: 100,
+    padding: SPACING.lg,
+  },
+  emptyScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: SPACING.xl,
   },
   emptyText: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.text,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xs,
-  },
-  emptySubtext: {
     fontSize: 14,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
   },
   footer: {
     padding: SPACING.md,
@@ -909,22 +920,21 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  addButton: {
+  fabAddButton: {
+    position: 'absolute',
+    right: SPACING.lg,
+    bottom: SPACING.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: COLORS.accent,
-    borderRadius: 12,
-    padding: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.xl,
-  },
-  addButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: SPACING.sm,
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   headerCard: {
     margin: SPACING.lg,

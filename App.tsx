@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import * as Font from 'expo-font';
 import AppNavigator from './src/navigation/AppNavigator';
 import NotificationService from './src/services/notificationService';
@@ -10,9 +10,9 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import LoadingSpinner from './src/components/LoadingSpinner';
-import ApiErrorBanner from './src/components/ApiErrorBanner';
 import { COLORS } from './src/constants';
 import { getApps } from '@react-native-firebase/app';
+import * as NavigationBar from 'expo-navigation-bar';
 import CrashlyticsService from './src/services/crashlyticsService';
 
 const LanguageWrapper: React.FC = () => {
@@ -29,6 +29,11 @@ const AppContent: React.FC = () => {
   const { isDark } = useTheme();
 
   useEffect(() => {
+    // Ensure Android navigation bar matches app theme
+    NavigationBar.setBackgroundColorAsync('#1b1b1f').catch(() => {});
+    NavigationBar.setButtonStyleAsync('light').catch(() => {});
+    NavigationBar.setBehaviorAsync('inset-swipe').catch(() => {});
+
     // Initialize Firebase services
     const initializeFirebase = async () => {
       try {
@@ -82,7 +87,6 @@ const AppContent: React.FC = () => {
     <ErrorBoundary>
       <SafeAreaProvider key={isDark ? 'dark' : 'light'}>
         <StatusBar style={isDark ? "light" : "dark"} />
-        <ApiErrorBanner />
         <AppNavigator />
       </SafeAreaProvider>
     </ErrorBoundary>
@@ -175,6 +179,3 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  // Styles removed - using ApiErrorBanner component instead
-});

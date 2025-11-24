@@ -10,6 +10,7 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -44,12 +45,14 @@ const STOScreen: React.FC = () => {
   const [showRadiusSelector, setShowRadiusSelector] = useState(false);
 
   useEffect(() => {
+    // Показываем экран сразу, данные загружаем в фоне
+    setLoading(false);
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      // Не устанавливаем loading=true, чтобы экран уже был виден
       // Используем данные пользователя из контекста
       if (!user?.id) {
         console.error('User not available');
@@ -77,7 +80,7 @@ const STOScreen: React.FC = () => {
     if (!userId) return;
     
     try {
-      setLoading(true);
+      // Не устанавливаем loading=true, чтобы экран уже был виден
       const data = await ApiService.getUserStations(userId);
       const favs = Array.isArray(data) ? data : [];
       setFavoriteStations(favs);
@@ -203,15 +206,16 @@ const STOScreen: React.FC = () => {
     return `${(distance / 1000).toFixed(1)} ${t('sto.kilometers')}`;
   };
 
-  if (loading) {
-    return <LoadingSpinner text={t('sto.searchingStations')} />;
-  }
-
   return (
     <SafeAreaView style={styles.container} edges={['left','right']}>
 
       {viewMode === 'list' ? (
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {loading && stations.length === 0 && (
+            <View style={{ padding: SPACING.lg, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={COLORS.accent} />
+            </View>
+          )}
           <View style={{ flexDirection: 'row', marginHorizontal: SPACING.lg, marginTop: SPACING.md }}>
             <Button title={t('common.add')} onPress={handleAddStation} style={{ flex: 1, marginRight: 4 }} />
             <Button title={t('sto.searchingStations')} onPress={() => requestLocationPermission()} variant="outline" style={{ flex: 1, marginLeft: 4 }} />

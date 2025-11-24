@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, StyleSheet, TouchableOpacity, Image, Text } from 'react-native';
 import { COLORS } from '../constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../types';
 import Icon from '../components/Icon';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -240,6 +241,7 @@ const BottomTabNavigator: React.FC<BottomTabNavigatorProps> = ({
   refreshTrigger
 }) => {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -248,8 +250,8 @@ const BottomTabNavigator: React.FC<BottomTabNavigatorProps> = ({
           backgroundColor: COLORS.card,
           borderTopColor: COLORS.border,
           borderTopWidth: 1,
-          height: 90,
-          paddingBottom: 20,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 8,
         },
         tabBarActiveTintColor: COLORS.primary,

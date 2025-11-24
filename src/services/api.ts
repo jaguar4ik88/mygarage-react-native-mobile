@@ -149,9 +149,24 @@ class ApiService {
     console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
     try {
       const headersToLog: Record<string, any> = { ...headers } as any;
+      // Mask sensitive headers
       if (headersToLog['X-API-Key']) {
         const val = String(headersToLog['X-API-Key']);
         headersToLog['X-API-Key'] = `${val.slice(0, 4)}…(${val.length})`;
+      }
+      if (headersToLog['Authorization']) {
+        const val = String(headersToLog['Authorization']);
+        // Mask Bearer token: show only first 10 chars and last 4
+        if (val.startsWith('Bearer ')) {
+          const token = val.substring(7);
+          if (token.length > 14) {
+            headersToLog['Authorization'] = `Bearer ${token.slice(0, 3)}…${token.slice(-4)}(${token.length})`;
+          } else {
+            headersToLog['Authorization'] = 'Bearer ***';
+          }
+        } else {
+          headersToLog['Authorization'] = '***';
+        }
       }
       console.log('📋 Request headers (masked):', headersToLog);
     } catch {
@@ -444,6 +459,14 @@ class ApiService {
       body: JSON.stringify(payload),
     });
     return response.data;
+  }
+
+  async deleteAccount(): Promise<void> {
+    await this.request<{ success: boolean; message: string }>('/profile', {
+      method: 'DELETE',
+    });
+    // Clear token after account deletion
+    await this.removeToken();
   }
 
   // Vehicle methods

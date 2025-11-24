@@ -56,6 +56,10 @@ const resolvedApiBase = envApiBase && envApiBase.trim().length > 0
   : 'https://mygarage.uno/api';
 
 export const API_BASE_URL = resolvedApiBase as string;
+
+// Base URL without /api suffix (for storage, privacy policy, terms of service, etc.)
+export const BASE_URL = API_BASE_URL.replace('/api', '') || 'https://mygarage.uno';
+
 // Do NOT hardcode API keys. Expect it from env; log a warning if missing.
 export const API_KEY = (process.env.EXPO_PUBLIC_API_KEY || '').trim();
 

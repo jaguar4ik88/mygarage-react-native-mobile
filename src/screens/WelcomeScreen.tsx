@@ -8,6 +8,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -117,7 +118,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
         ]}
       >
         <View style={styles.logoCircle}>
-          <Text style={styles.logoEmoji}>🚗</Text>
+          <Image 
+            source={require('../../assets/adaptive-icon-new.png')} 
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
         <Text style={[styles.title, { color: isDark ? COLORS.text : COLORS.textDark }]}>
           {t('welcome.title')}
@@ -178,7 +183,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
       {/* Bottom decoration */}
       <View style={styles.bottomDecoration}>
         <Text style={[styles.versionText, { color: isDark ? COLORS.textMuted : COLORS.textMutedDark }]}>
-          v1.6.0
+          v{Constants.expoConfig?.version || '1.0.0'}
         </Text>
       </View>
     </View>
@@ -208,8 +213,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  logoEmoji: {
-    fontSize: 60,
+  logoImage: {
+    width: 80,
+    height: 80,
   },
   title: {
     fontSize: 32,

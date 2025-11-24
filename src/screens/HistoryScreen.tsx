@@ -11,6 +11,8 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
@@ -24,7 +26,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Icon from '../components/Icon';
 import DateInput from '../components/DateInput';
 import Paywall from '../components/Paywall';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
 import ApiService from '../services/api';
 import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -60,6 +62,9 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const [receiptPhoto, setReceiptPhoto] = useState<any>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [viewingRecord, setViewingRecord] = useState<ServiceHistory | null>(null);
+  const [receiptPhotoUrl, setReceiptPhotoUrl] = useState<string | null>(null);
+  const [loadingReceiptPhoto, setLoadingReceiptPhoto] = useState(false);
   
   // Вычисляем isPro на основе user.plan_type (вместо отдельного состояния)
   const isPro = user?.plan_type === 'pro' || user?.plan_type === 'premium';
@@ -70,11 +75,19 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   });
 
   useEffect(() => {
+    // Показываем экран сразу, данные загружаем в фоне
+    setLoading(false);
     if (user?.id) {
       loadData(1);
     } else if (isGuest) {
       // Для гостевого режима показываем пустой экран без загрузки
-      setLoading(false);
+    } else {
+      // Если пользователь не загружен, пытаемся обновить данные
+      refreshUser().then(() => {
+        if (user?.id) {
+          loadData(1);
+        }
+      });
     }
   }, [user?.id, isGuest]);
 
@@ -99,9 +112,8 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
 
   const loadData = async (page: number = 1, append: boolean = false) => {
     try {
-      if (page === 1) {
-        setLoading(true);
-      } else {
+      // Не устанавливаем loading=true для первой страницы, чтобы экран уже был виден
+      if (page !== 1) {
         setLoadingMore(true);
       }
       
@@ -345,6 +357,81 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
     }).format(amount);
   };
 
+  // Функция для попытки загрузки фото с разными URL
+  const tryLoadImage = async (photoPath: string, recordId?: number): Promise<string | null> => {
+    // Если это уже полный URL, используем его
+    if (photoPath.startsWith('http')) {
+      return photoPath;
+    }
+
+    // Сначала попробуем через новый API эндпоинт для чеков
+    if (recordId) {
+      const apiUrl = `${BASE_URL}/api/expenses/${recordId}/receipt`;
+      
+      try {
+        const response = await fetch(apiUrl, { method: 'HEAD' });
+        if (response.ok) {
+          return apiUrl;
+        }
+      } catch (error) {
+        // Silent fail
+      }
+    }
+
+    const baseUrls = [
+      `${BASE_URL}/storage/`,  // Основной домен (через симлинк)
+      `${BASE_URL}/api/storage/`,  // API эндпоинт для фото
+      `${BASE_URL}/public/storage/`,  // Через public/storage
+      `${BASE_URL}/www/storage/app/public/`,  // Прямой путь
+      'https://mygarage.app/storage/'   // Альтернативный домен (fallback)
+    ];
+
+    // Попробуем все URL по очереди
+    for (let i = 0; i < baseUrls.length; i++) {
+      const testUrl = baseUrls[i] + photoPath;
+      
+      try {
+        const response = await fetch(testUrl, { method: 'HEAD' });
+        if (response.ok) {
+          return testUrl;
+        }
+      } catch (error) {
+        // Продолжаем пробовать следующий URL
+        continue;
+      }
+    }
+
+    // Если ничего не сработало, возвращаем null
+    return null;
+  };
+
+  // Загрузка фото чека при открытии окна просмотра
+  useEffect(() => {
+    if (viewingRecord && (viewingRecord as any).receipt_photo) {
+      setLoadingReceiptPhoto(true);
+      setReceiptPhotoUrl(null);
+      
+      const loadPhoto = async () => {
+        const photoPath = (viewingRecord as any).receipt_photo;
+        let workingUrl: string | null = null;
+        
+        if (photoPath.startsWith('http')) {
+          workingUrl = photoPath;
+        } else {
+          workingUrl = await tryLoadImage(photoPath, viewingRecord.id);
+        }
+        
+        setReceiptPhotoUrl(workingUrl);
+        setLoadingReceiptPhoto(false);
+      };
+      
+      loadPhoto();
+    } else {
+      setReceiptPhotoUrl(null);
+      setLoadingReceiptPhoto(false);
+    }
+  }, [viewingRecord]);
+
   const handleExportToPdf = async () => {
     try {
       const user = await ApiService.getProfile();
@@ -403,10 +490,6 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
 
   // Removed emoji icon map to comply with project UI policy (no emojis)
 
-  if (loading) {
-    return <LoadingSpinner text={t('common.loading')} />;
-  }
-
   return (
     <SafeAreaView style={styles.container} edges={['left','right']}>
       <KeyboardAvoidingView 
@@ -414,6 +497,11 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
+        {loading && history.length === 0 && (
+          <View style={{ padding: SPACING.lg, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+          </View>
+        )}
         <FlatList
           data={history}
           keyExtractor={(item) => item.id.toString()}
@@ -421,7 +509,10 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
             const vehicle = vehicles.find(v => v.id === record.vehicle_id);
             
             return (
-              <Card style={styles.recordCard}>
+              <Card 
+                style={styles.recordCard}
+                onPress={() => setViewingRecord(record)}
+              >
                 <View style={styles.recordHeader}>
                   <View style={styles.recordInfo}>
                     <Text style={styles.recordDescription} numberOfLines={2} ellipsizeMode="tail">{record.description}</Text>
@@ -537,6 +628,117 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         userCurrency={userCurrency}
         isPro={isPro}
       />
+
+      {/* Record View Modal */}
+      <Modal
+        visible={!!viewingRecord}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setViewingRecord(null)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setViewingRecord(null)}
+              style={styles.iconOnlyButton}
+            >
+              <Icon name="close" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{t('history.title')}</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          
+          {viewingRecord && (
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <Card style={styles.viewRecordCard}>
+                <View style={styles.viewRecordSection}>
+                  <Text style={styles.viewRecordLabel}>{t('history.description')}</Text>
+                  <Text style={styles.viewRecordValue}>{viewingRecord.description || t('history.noRecordsText')}</Text>
+                </View>
+
+                <View style={styles.viewRecordSection}>
+                  <Text style={styles.viewRecordLabel}>{t('history.vehicle')}</Text>
+                  <Text style={styles.viewRecordValue}>
+                    {vehicles.find(v => v.id === viewingRecord.vehicle_id) 
+                      ? `${vehicles.find(v => v.id === viewingRecord.vehicle_id)?.year} ${vehicles.find(v => v.id === viewingRecord.vehicle_id)?.make} ${vehicles.find(v => v.id === viewingRecord.vehicle_id)?.model}`
+                      : t('history.unknownVehicle')}
+                  </Text>
+                </View>
+
+                <View style={styles.viewRecordSection}>
+                  <Text style={styles.viewRecordLabel}>{t('history.recordType')}</Text>
+                  <Text style={styles.viewRecordValue}>
+                    {expenseTypes.find(et => et.id === viewingRecord.expense_type_id)?.name || t('history.other')}
+                  </Text>
+                </View>
+
+                <View style={styles.viewRecordSection}>
+                  <Text style={styles.viewRecordLabel}>{t('history.serviceDate')}</Text>
+                  <Text style={styles.viewRecordValue}>{formatDate(viewingRecord.service_date)}</Text>
+                </View>
+
+                <View style={styles.viewRecordSection}>
+                  <Text style={styles.viewRecordLabel}>{t('history.cost')}</Text>
+                  <Text style={[styles.viewRecordValue, styles.viewRecordCost]}>
+                    {formatCurrency(viewingRecord.cost)}
+                  </Text>
+                </View>
+
+                {(viewingRecord as any).receipt_photo && (
+                  <View style={styles.viewRecordSection}>
+                    <Text style={styles.viewRecordLabel}>{t('expenseModal.receiptPhoto')}</Text>
+                    {loadingReceiptPhoto ? (
+                      <View style={styles.receiptPhotoLoading}>
+                        <ActivityIndicator size="small" color={COLORS.accent} />
+                        <Text style={styles.receiptPhotoLoadingText}>
+                          {t('common.loading') || 'Загрузка...'}
+                        </Text>
+                      </View>
+                    ) : receiptPhotoUrl ? (
+                      <Image 
+                        source={{ uri: receiptPhotoUrl }} 
+                        style={styles.viewRecordImage}
+                        resizeMode="contain"
+                        onError={() => {
+                          console.error('Failed to load receipt photo:', receiptPhotoUrl);
+                          setReceiptPhotoUrl(null);
+                        }}
+                      />
+                    ) : (
+                      <View style={styles.receiptPhotoError}>
+                        <Icon name="alert-circle" size={24} color={COLORS.textMuted} />
+                        <Text style={styles.receiptPhotoErrorText}>
+                          {t('expenseModal.photoLoadError') || 'Не удалось загрузить фото'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.modalActionsBottom}>
+                  <Button
+                    title={t('common.edit')}
+                    onPress={() => {
+                      setViewingRecord(null);
+                      handleEditRecord(viewingRecord);
+                    }}
+                    style={styles.modalEditButton}
+                  />
+                  <Button
+                    title={t('common.delete')}
+                    onPress={() => {
+                      setViewingRecord(null);
+                      handleDeleteRecord(viewingRecord.id);
+                    }}
+                    variant="outline"
+                    style={styles.modalDeleteButton}
+                  />
+                </View>
+              </Card>
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -752,7 +954,6 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
-    padding: SPACING.lg,
   },
   modalActionsBottom: {
     flexDirection: 'row',
@@ -838,6 +1039,75 @@ const styles = StyleSheet.create({
   },
   modalKeyboardAvoidingView: {
     flex: 1,
+  },
+  viewRecordCard: {
+    margin: SPACING.sm,
+    marginHorizontal: SPACING.md,
+  },
+  viewRecordSection: {
+    marginBottom: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  viewRecordLabel: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.xs,
+    textTransform: 'uppercase',
+  },
+  viewRecordValue: {
+    fontSize: 16,
+    fontFamily: FONTS.regular,
+    color: COLORS.text,
+    lineHeight: 24,
+  },
+  viewRecordCost: {
+    fontSize: 24,
+    fontFamily: FONTS.bold,
+    color: COLORS.accent,
+  },
+  viewRecordImage: {
+    width: '100%',
+    height: 300,
+    borderRadius: 8,
+    marginTop: SPACING.sm,
+    backgroundColor: COLORS.background,
+  },
+  receiptPhotoLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    marginTop: SPACING.sm,
+  },
+  receiptPhotoLoadingText: {
+    marginLeft: SPACING.sm,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  receiptPhotoError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    marginTop: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+  },
+  receiptPhotoErrorText: {
+    marginLeft: SPACING.sm,
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  modalEditButton: {
+    flex: 1,
+    marginRight: SPACING.sm,
+  },
+  modalDeleteButton: {
+    flex: 1,
+    marginLeft: SPACING.sm,
   },
 });
 

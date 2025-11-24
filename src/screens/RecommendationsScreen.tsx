@@ -24,11 +24,12 @@ const RecommendationsScreen: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
   useEffect(() => {
+    // Показываем экран сразу, данные загружаем в фоне
+    setLoading(false);
     if (user?.id) {
       loadVehicles();
     } else if (isGuest) {
       // Для гостевого режима показываем пустой экран без загрузки
-      setLoading(false);
     }
   }, [user?.id, isGuest]);
 
@@ -40,14 +41,14 @@ const RecommendationsScreen: React.FC = () => {
 
   const loadVehicles = async () => {
     try {
-      setLoading(true);
+      // Не устанавливаем loading=true, чтобы экран уже был виден
       const list = await ApiService.getVehicles();
       setVehicles(list);
       if (list.length === 0) {
         setRecommendations([]);
       }
     } catch (e) {
-      Alert.alert(t('common.error'), t('common.failedToLoadData'));
+      // Не показываем Alert при первой загрузке
     } finally {
       setLoading(false);
     }
@@ -115,6 +116,15 @@ const RecommendationsScreen: React.FC = () => {
     }, 50);
   };
 
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  useEffect(() => {
+    // Отслеживаем первую загрузку для показа индикатора
+    if (vehicles.length > 0 || (user?.id && !isGuest)) {
+      setIsInitialLoading(false);
+    }
+  }, [vehicles.length, user?.id, isGuest]);
+
   const renderRecommendation = ({ item }: { item: any }) => {
     const section = item?.manual_section || item?.manualSection;
     const slug = section?.slug;
@@ -151,10 +161,6 @@ const RecommendationsScreen: React.FC = () => {
     </View>
   );
 
-  if (loading) {
-    return <LoadingSpinner text={t('common.loading')} />;
-  }
-
   const current = vehicles[selectedIndex];
   const missingYear = current && (!current.year || current.year <= 0);
 
@@ -166,6 +172,12 @@ const RecommendationsScreen: React.FC = () => {
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={
           <>
+            {/* Индикатор загрузки в фоне */}
+            {isInitialLoading && (
+              <View style={{ padding: SPACING.md, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={COLORS.accent} />
+              </View>
+            )}
             {/* Vehicle selector under the stack header */}
             <View style={styles.carouselWrapper}>
               <ScrollView

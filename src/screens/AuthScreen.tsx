@@ -56,11 +56,23 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, navigation, init
   const configureGoogleSignIn = () => {
     try {
       // Firebase автоматически настраивает Google Sign-In из GoogleService-Info.plist
-      // Нужно только указать webClientId для верификации токенов
-      GoogleSignin.configure({
+      // Для iOS нужен iosClientId из REVERSED_CLIENT_ID в GoogleService-Info.plist
+      // REVERSED_CLIENT_ID: com.googleusercontent.apps.1041379542857-5i00r9ism77rikh77l5hn9lhednciv37
+      // iOS Client ID: 1041379542857-5i00r9ism77rikh77l5hn9lhednciv37
+      const config: any = {
         webClientId: AUTH_CONFIG.google.webClientId,
         offlineAccess: true,
-      });
+      };
+      
+      if (Platform.OS === 'ios') {
+        // iOS Client ID - берем из REVERSED_CLIENT_ID, убирая префикс com.googleusercontent.apps.
+        const reversedClientId = 'com.googleusercontent.apps.1041379542857-5i00r9ism77rikh77l5hn9lhednciv37';
+        const iosClientId = reversedClientId.replace('com.googleusercontent.apps.', '');
+        config.iosClientId = iosClientId;
+        console.log('✅ iOS Client ID configured:', iosClientId);
+      }
+      
+      GoogleSignin.configure(config);
       console.log('✅ Google Sign-In configured with Firebase');
     } catch (error) {
       console.error('❌ Failed to configure Google Sign-In:', error);
@@ -95,6 +107,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, navigation, init
             if (response.token) {
               await AsyncStorage.setItem('auth_token', response.token);
               await ApiService.updateToken();
+              
+              // Сохраняем данные пользователя
+              if (response.user) {
+                await AsyncStorage.setItem('user_data', JSON.stringify(response.user));
+              }
+              
+              // Используем login из AuthContext для обновления состояния
+              await login(savedEmail, savedPassword);
+              
               await Analytics.track('auth_biometric_success');
               onAuthSuccess();
               return;
@@ -130,8 +151,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, navigation, init
       setLoading(true);
       await Analytics.track('google_signin_started');
       
-      // Проверяем доступность Google Play Services
-      await GoogleSignin.hasPlayServices();
+      // Проверяем доступность Google Play Services (только для Android)
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices();
+      }
       
       // Выполняем вход
       const userInfo = await GoogleSignin.signIn();
@@ -164,16 +187,40 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, navigation, init
         return;
       }
       
-      // Реальная ошибка - отправляем в аналитику
-      await Analytics.track('google_signin_failed', { error: error?.message });
+      // Реальная ошибка - отправляем в аналитику и Crashlytics
+      const errorMessage = error?.message || 'Unknown error';
+      await Analytics.track('google_signin_failed', { 
+        error: errorMessage,
+        code: error?.code,
+        platform: Platform.OS,
+        isTablet: Platform.isPad || false,
+      });
       
-      if (error.code === statusCodes.IN_PROGRESS) {
-        Alert.alert('Error', 'Sign in is already in progress');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        Alert.alert('Error', 'Google Play Services not available');
-      } else {
-        console.error('Google Sign-In error:', error);
-        Alert.alert('Error', error.message || 'Failed to sign in with Google');
+      // Логируем в Crashlytics для отладки
+      await CrashlyticsService.recordError(
+        new Error(`Google Sign-In failed: ${errorMessage}`),
+        'Google Sign-In Error'
+      );
+      
+      // Предотвращаем краш приложения
+      try {
+        if (error.code === statusCodes.IN_PROGRESS) {
+          Alert.alert(t('common.error'), t('auth.signInInProgress') || 'Sign in is already in progress');
+        } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          // Эта ошибка только для Android
+          Alert.alert(t('common.error'), t('auth.playServicesNotAvailable') || 'Google Play Services not available');
+        } else {
+          console.error('Google Sign-In error:', error);
+          const userFriendlyMessage = errorMessage.includes('URL schemes') 
+            ? t('auth.googleSignInConfigError') || 'Google Sign-In configuration error. Please contact support.'
+            : errorMessage;
+          Alert.alert(
+            t('common.error'), 
+            userFriendlyMessage || t('auth.googleSignInFailed') || 'Failed to sign in with Google'
+          );
+        }
+      } catch (alertError) {
+        console.error('Error showing alert:', alertError);
       }
     } finally {
       setLoading(false);

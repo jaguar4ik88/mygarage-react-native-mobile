@@ -11,6 +11,7 @@ import {
   Modal,
   Linking,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '../components/Card';
@@ -18,7 +19,7 @@ import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProfileEditModal from '../components/ProfileEditModal';
 import Icon from '../components/Icon';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
 import appConfig from '../../app.json';
 import { useTheme } from '../contexts/ThemeContext';
 import ApiService from '../services/api';
@@ -46,7 +47,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme, isDark } = useTheme();
-  const { isGuest, user } = useAuth();
+  const { isGuest, user, refreshUser } = useAuth();
   const [userData, setUserData] = useState<User | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,11 +64,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [paywallFeature, setPaywallFeature] = useState('unlimited_vehicles');
 
   useEffect(() => {
+    // Показываем экран сразу, данные загружаем в фоне
+    setLoading(false);
     if (user?.id) {
       loadData();
     } else if (isGuest) {
       // Для гостевого режима показываем пустой экран без загрузки
-      setLoading(false);
+    } else {
+      // Если пользователь не загружен, пытаемся обновить данные
+      refreshUser().then(() => {
+        if (user?.id) {
+          loadData();
+        }
+      });
     }
   }, [user?.id, isGuest]);
 
@@ -79,7 +88,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      // Не устанавливаем loading=true, чтобы экран уже был виден
       const [userData, vehiclesData] = await Promise.all([
         ApiService.getProfile(),
         ApiService.getVehicles(),
@@ -89,7 +98,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setVehicles(vehiclesData);
     } catch (error) {
       console.error('Error loading profile data:', error);
-      Alert.alert(t('profile.error'), t('profile.failedToLoadProfile'));
+      // Не показываем Alert при первой загрузке, только при ошибке обновления
     } finally {
       setLoading(false);
     }
@@ -154,6 +163,43 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t('profile.deleteAccountTitle'),
+      t('profile.deleteAccountMessage'),
+      [
+        { text: t('profile.cancel'), style: 'cancel' },
+        {
+          text: t('profile.deleteAccountConfirm'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await ApiService.deleteAccount();
+              Alert.alert(
+                t('common.success') || 'Success',
+                t('profile.deleteAccountSuccess'),
+                [
+                  {
+                    text: t('common.ok') || 'OK',
+                    onPress: () => {
+                      onLogout(); // Logout after account deletion
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error('Delete account error:', error);
+              Alert.alert(
+                t('common.error') || 'Error',
+                t('profile.deleteAccountError')
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleRateApp = () => {
     let url = '';
     
@@ -164,7 +210,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       // Пытаемся открыть в Google Play приложении
       url = 'market://details?id=uno.mygarage.app';
     } else {
-      url = 'https://mygarage.uno/';
+      url = `${BASE_URL}/`;
     }
     
     Linking.openURL(url).catch(err => {
@@ -174,7 +220,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
         ? 'https://play.google.com/store/apps/details?id=uno.mygarage.app'
         : Platform.OS === 'ios'
         ? 'https://apps.apple.com/us/app/mygarage-uno/id6753170441'
-        : 'https://mygarage.uno/';
+        : `${BASE_URL}/`;
       Linking.openURL(fallbackUrl).catch(() => {
         Alert.alert(t('common.error'), t('profile.failedToOpenAppStore') || 'Не удалось открыть магазин приложений');
       });
@@ -193,13 +239,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // Recreate styles when theme changes so COLORS mutations take effect immediately
   const styles = React.useMemo(() => createStyles(), [isDark]);
 
-  if (loading) {
-    return <LoadingSpinner text={t('profile.loadingProfile')} />;
-  }
-
   return (
     <SafeAreaView style={styles.container} edges={['left','right','bottom']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {loading && !userData && (
+          <View style={{ padding: SPACING.lg, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+          </View>
+        )}
         {userData && userData.name && (
           <Card style={styles.userCard}>
             <View style={styles.userInfo}>
@@ -432,28 +479,26 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </Card>
 
         
-          {/* Subscription section */}
-          {!isGuest && (
-            <Card style={styles.sectionCard}>
-              <TouchableOpacity 
-                style={styles.settingItem} 
-                onPress={() => navigation?.navigate('Subscription')}
-              >
-                <Icon name="star" size={20} color={COLORS.text} style={styles.settingIcon} />
-                <Text style={styles.settingText}>
-                  {t('subscription.title') || 'Підписка'}
-                </Text>
-                {user?.plan_type !== 'free' && (
-                  <View style={styles.proBadgeSmall}>
-                    <Text style={styles.proBadgeSmallText}>
-                      {user?.plan_type?.toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <Icon name="forward" size={16} color={COLORS.textMuted} />
-              </TouchableOpacity>
-              </Card>
-          )}
+          {/* Subscription section - Available for all users including guests */}
+          <Card style={styles.sectionCard}>
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              onPress={() => navigation?.navigate('Subscription')}
+            >
+              <Icon name="star" size={20} color={COLORS.text} style={styles.settingIcon} />
+              <Text style={styles.settingText}>
+                {t('subscription.title') || 'Подписка'}
+              </Text>
+              {user?.plan_type && user?.plan_type !== 'free' && (
+                <View style={styles.proBadgeSmall}>
+                  <Text style={styles.proBadgeSmallText}>
+                    {user?.plan_type?.toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Icon name="forward" size={16} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </Card>
        
 
         <Card style={styles.sectionCard}>
@@ -485,6 +530,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           style={styles.logoutButton}
           icon="logout"
         />
+
+        {!isGuest && (
+          <Button
+            title={t('profile.deleteAccount')}
+            onPress={handleDeleteAccount}
+            variant="outline"
+            style={[styles.logoutButton, styles.deleteAccountButton]}
+            icon="trash"
+          />
+        )}
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -769,6 +824,10 @@ const createStyles = () => StyleSheet.create({
   logoutButton: {
     margin: SPACING.lg,
     borderColor: COLORS.accent,
+  },
+  deleteAccountButton: {
+    borderColor: COLORS.accent,
+    marginTop: SPACING.sm,
   },
   bottomSpacing: {
     height: SPACING.xxl,

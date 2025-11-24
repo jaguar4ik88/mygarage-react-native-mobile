@@ -21,7 +21,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.5.0</string>
+    <string>2.0.0</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -30,18 +30,18 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>mygarage</string>
-          <string>uno.mygarage.app</string>
+          <string>uno.mygarage.com</string>
         </array>
       </dict>
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.googleusercontent.apps.1041379542857-j99mbufll36t9v5m8373fsbfje73lj29</string>
+          <string>com.googleusercontent.apps.1041379542857-5i00r9ism77rikh77l5hn9lhednciv37</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -95,8 +95,6 @@
     <true/>
     <key>UIBackgroundModes</key>
     <array>
-      <string>background-processing</string>
-      <string>background-fetch</string>
       <string>remote-notification</string>
     </array>
     <key>UILaunchStoryboardName</key>

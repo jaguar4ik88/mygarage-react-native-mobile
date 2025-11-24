@@ -35,11 +35,12 @@ interface AddCarScreenProps {
 
 const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack, navigation }) => {
   const { t } = useLanguage();
-  const { isGuest, promptToLogin } = useAuth();
+  const { isGuest, promptToLogin, user } = useAuth();
   const [method, setMethod] = useState<'vin' | 'engine' | 'manual'>('vin');
   const [loading, setLoading] = useState(false);
   const [vinLoading, setVinLoading] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallSubscriptionType, setPaywallSubscriptionType] = useState<'pro' | 'premium'>('pro');
   const [formData, setFormData] = useState({
     vin: '',
     year: '',
@@ -301,6 +302,13 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack, navigat
     } catch (error: any) {
       // Проверка лимита подписки (это не ошибка, а бизнес-логика)
       if (error.upgrade_required || error.limit_reached) {
+        // Определяем тип подписки для Paywall на основе текущего плана пользователя
+        const planType = user?.plan_type || 'free';
+        if (planType === 'pro') {
+          setPaywallSubscriptionType('premium');
+        } else {
+          setPaywallSubscriptionType('pro');
+        }
         setShowPaywall(true);
         return;
       }
@@ -308,8 +316,15 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack, navigat
       // Дополнительная проверка по тексту сообщения
       if (error.message && (
         error.message.includes('maximum number of vehicles') ||
-        error.message.includes('requires PRO subscription')
+        error.message.includes('requires PRO subscription') ||
+        error.message.includes('requires PREMIUM subscription')
       )) {
+        const planType = user?.plan_type || 'free';
+        if (planType === 'pro') {
+          setPaywallSubscriptionType('premium');
+        } else {
+          setPaywallSubscriptionType('pro');
+        }
         setShowPaywall(true);
         return;
       }
@@ -616,6 +631,8 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack, navigat
           navigation?.navigate('Subscription');
         }}
         feature="unlimited_vehicles"
+        subscriptionType={paywallSubscriptionType}
+        currentPlan={user?.plan_type || 'free'}
       />
     </SafeAreaView>
   );

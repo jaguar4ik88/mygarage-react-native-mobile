@@ -10,6 +10,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '../components/Card';
@@ -41,11 +42,12 @@ const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
   useEffect(() => {
+    // Показываем экран сразу, данные загружаем в фоне
+    setLoading(false);
     if (user?.id) {
       loadData();
     } else if (isGuest) {
       // Для гостевого режима показываем пустой экран без загрузки
-      setLoading(false);
     }
   }, [user?.id, isGuest]);
 
@@ -74,12 +76,11 @@ const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      // Не устанавливаем loading=true, чтобы экран уже был виден
       
       // Проверяем что user загружен
       if (!user?.id) {
         console.log('User not loaded yet');
-        setLoading(false);
         return;
       }
       
@@ -99,7 +100,7 @@ const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert(t('reminders.error'), t('reminders.failedToLoadReminders'));
+      // Не показываем Alert при первой загрузке, только при ошибке обновления
     } finally {
       setLoading(false);
     }
@@ -237,11 +238,6 @@ const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
     return styles.reminderCard;
   };
 
-
-  if (loading) {
-    return <LoadingSpinner text={t('common.loading')} />;
-  }
-
   return (
      <SafeAreaView style={styles.container} edges={['left','right']}>
       <KeyboardAvoidingView 
@@ -253,12 +249,16 @@ const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
           style={styles.scrollView} 
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            <RefreshControl refreshing={refreshing || loading} onRefresh={handleRefresh} />
           }
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
         >
-
+        {loading && reminders.length === 0 && (
+          <View style={{ padding: SPACING.lg, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+          </View>
+        )}
         <AnimatedView animation="fadeIn" delay={0}>
           <View style={styles.addButtonContainer}>
             <Button

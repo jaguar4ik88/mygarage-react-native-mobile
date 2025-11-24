@@ -10,7 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import Icon from './Icon';
@@ -53,6 +53,7 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
   vehicle,
 }) => {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
@@ -207,6 +208,8 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.xxl }}
           >
             <View style={styles.form}>
               {/* Document Type */}

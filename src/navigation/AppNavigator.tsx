@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { COLORS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -48,6 +49,7 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
   const [currentVehicleId, setCurrentVehicleId] = useState<number | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallSubscriptionType, setPaywallSubscriptionType] = useState<'pro' | 'premium'>('pro');
   const navigationRef = useRef<any>(null);
 
   useEffect(() => {
@@ -169,14 +171,27 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
       // FREE план - максимум 1 машина
       if (planType === 'free' && vehicleCount >= 1) {
         console.log('🚫 Vehicle limit reached for free plan');
+        setPaywallSubscriptionType('pro');
         setShowPaywall(true);
         return;
       }
       
-      // PRO/PREMIUM план - максимум 3 машины
-      if ((planType === 'pro' || planType === 'premium') && vehicleCount >= 3) {
-        console.log('🚫 Vehicle limit reached for pro/premium plan');
+      // PRO план - максимум 3 машины, предлагаем Premium
+      if (planType === 'pro' && vehicleCount >= 3) {
+        console.log('🚫 Vehicle limit reached for pro plan, showing premium paywall');
+        setPaywallSubscriptionType('premium');
         setShowPaywall(true);
+        return;
+      }
+      
+      // PREMIUM план - безлимит (но технически тоже максимум 3 по текущей конфигурации)
+      if (planType === 'premium' && vehicleCount >= 3) {
+        console.log('🚫 Vehicle limit reached for premium plan');
+        // Для Premium можно показать сообщение о том, что лимит достигнут
+        Alert.alert(
+          t('common.information') || 'Информация',
+          t('addCar.maxVehiclesReached') || 'Достигнут максимальный лимит автомобилей для вашей подписки'
+        );
         return;
       }
       
@@ -490,6 +505,8 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
         onClose={() => setShowPaywall(false)}
         onUpgrade={handleUpgrade}
         feature="unlimited_vehicles"
+        subscriptionType={paywallSubscriptionType}
+        currentPlan={user?.plan_type || 'free'}
       />
     </>
   );
