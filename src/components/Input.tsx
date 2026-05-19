@@ -9,7 +9,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS } from '../constants';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -62,15 +62,17 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   label: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: COLORS.text,
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: RADIUS.xl,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     fontSize: 16,

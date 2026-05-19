@@ -259,6 +259,138 @@ class NotificationService {
       console.error('Error marking reminder as inactive:', error);
     }
   }
+
+  /**
+   * Планирует периодические уведомления о добавлении трат
+   * 3 раза в неделю (Понедельник, Среда, Пятница) в 19:00
+   */
+  async scheduleExpenseReminders() {
+    try {
+      await this.initialize();
+
+      // Отменяем старые уведомления о тратах
+      await this.cancelExpenseReminders();
+
+      const now = new Date();
+      const notifications: Array<{ date: Date; dayOfWeek: string }> = [];
+
+      // Определяем дни недели для уведомлений: Понедельник (1), Среда (3), Пятница (5)
+      const reminderDays = [1, 3, 5]; // Monday, Wednesday, Friday
+      const notificationTime = 19; // 19:00 (7 PM)
+
+      // Генерируем уведомления на ближайшие 8 недель (24 уведомления - 3 раза в неделю * 8 недель)
+      for (let weekOffset = 0; weekOffset < 8; weekOffset++) {
+        for (const targetDayOfWeek of reminderDays) {
+          const date = new Date(now);
+          
+          // JavaScript getDay(): 0=воскресенье, 1=понедельник, ..., 6=суббота
+          // Наш формат: 1=понедельник, 3=среда, 5=пятница
+          const currentDayOfWeek = now.getDay();
+          
+          // Преобразуем наш формат (1,3,5) в JS формат (1,3,5)
+          const targetJsDay = targetDayOfWeek; // Уже в JS формате
+          
+          // Вычисляем дни до целевого дня недели
+          let daysUntilTarget = targetJsDay - currentDayOfWeek;
+          
+          // Если день уже прошел на этой неделе, берем следующий неделю
+          if (daysUntilTarget <= 0) {
+            daysUntilTarget += 7;
+          }
+          
+          // Добавляем недели
+          daysUntilTarget += (weekOffset * 7);
+
+          date.setDate(now.getDate() + daysUntilTarget);
+          date.setHours(notificationTime, 0, 0, 0); // 19:00
+
+          const dayNames = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+          const dayOfWeekName = dayNames[targetJsDay];
+
+          notifications.push({ date, dayOfWeek: dayOfWeekName });
+        }
+      }
+
+      // Планируем уведомления
+      for (let i = 0; i < notifications.length; i++) {
+        const { date } = notifications[i];
+        
+        // Пропускаем уведомления в прошлом
+        if (date.getTime() <= now.getTime()) {
+          continue;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'MyGarage',
+            body: 'Не забудьте добавить записи о тратах на автомобиль',
+            data: {
+              type: 'expense_reminder',
+              weekNumber: Math.floor(i / 3), // Номер недели для отслеживания
+            },
+          },
+          trigger: {
+            type: SchedulableTriggerInputTypes.DATE,
+            date,
+          },
+          identifier: `expense_reminder_${date.getTime()}`,
+        });
+      }
+
+      console.log(`✅ Планировано ${notifications.length} уведомлений о тратах на ближайшие 8 недель`);
+      
+      // Запланировать обновление уведомлений через 7 дней (чтобы всегда были актуальные)
+      setTimeout(() => {
+        this.scheduleExpenseReminders();
+      }, 7 * 24 * 60 * 60 * 1000); // Через 7 дней
+      
+    } catch (error) {
+      console.error('Error scheduling expense reminders:', error);
+    }
+  }
+
+  /**
+   * Отменяет все уведомления о тратах
+   */
+  async cancelExpenseReminders() {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const expenseReminders = allNotifications.filter(
+        notification => notification.identifier.startsWith('expense_reminder_')
+      );
+
+      for (const notification of expenseReminders) {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      }
+
+      console.log(`Отменено ${expenseReminders.length} уведомлений о тратах`);
+    } catch (error) {
+      console.error('Error cancelling expense reminders:', error);
+    }
+  }
+
+  /**
+   * Инициализирует уведомления о тратах после успешного входа
+   */
+  async initializeExpenseReminders(userId: number) {
+    try {
+      // Планируем уведомления только для авторизованных пользователей
+      await this.scheduleExpenseReminders();
+    } catch (error) {
+      console.error('Error initializing expense reminders:', error);
+    }
+  }
+
+  /**
+   * Отменяет все уведомления о тратах при выходе
+   */
+  async cancelExpenseRemindersOnLogout() {
+    try {
+      await this.cancelExpenseReminders();
+    } catch (error) {
+      console.error('Error cancelling expense reminders on logout:', error);
+    }
+  }
 }
 
 export default new NotificationService();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,17 +10,19 @@ import {
   Platform,
   Modal,
   KeyboardAvoidingView,
+  ActivityIndicator,
+  Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Card from './Card';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from './Button';
 import Icon from './Icon';
 import DateInput from './DateInput';
-import { COLORS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS } from '../constants';
 import ApiService from '../services/api';
 import NotificationService from '../services/notificationService';
 import { Reminder } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ReminderModalProps {
   visible: boolean;
@@ -38,16 +40,17 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
   userId,
 }) => {
   const { t, language } = useLanguage();
+  const { appearanceKey } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(), [appearanceKey]);
+
   const [loading, setLoading] = useState(false);
   const [reminderTypes, setReminderTypes] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState<Reminder['type']>('oil');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [nextServiceDate, setNextServiceDate] = useState('');
-  
-  // Date picker states
 
-  // Load reminder types on component mount
   useEffect(() => {
     const loadReminderTypes = async () => {
       try {
@@ -57,7 +60,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
         console.error('Error loading reminder types:', error);
       }
     };
-    
+
     if (visible) {
       loadReminderTypes();
     }
@@ -68,7 +71,9 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
       setSelectedType(editingReminder.type as Reminder['type']);
       setTitle(editingReminder.title || '');
       setDescription(editingReminder.description || '');
-      setNextServiceDate(editingReminder.next_service_date ? editingReminder.next_service_date.split('T')[0] : '');
+      setNextServiceDate(
+        editingReminder.next_service_date ? editingReminder.next_service_date.split('T')[0] : ''
+      );
     } else {
       setSelectedType('oil');
       setTitle('');
@@ -77,10 +82,8 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
     }
   }, [editingReminder]);
 
-  // Update title when type changes (for new reminders)
   useEffect(() => {
     if (!editingReminder && selectedType) {
-      // Set title to the translated type name for new reminders
       const typeTitle = t(`reminders.types.${selectedType}`);
       setTitle(typeTitle);
     }
@@ -88,18 +91,18 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert(t('common.error'), t('addReminder.enterTitle'));
+      Alert.alert(t('common.error'), t('addReminder.errors.nameRequired'));
       return;
     }
 
     if (!nextServiceDate.trim()) {
-      Alert.alert(t('common.error'), t('addReminder.enterNextServiceDate'));
+      Alert.alert(t('common.error'), t('addReminder.errors.nextDateRequired'));
       return;
     }
 
     try {
       setLoading(true);
-      
+
       const reminderData: Partial<Reminder> = {
         type: selectedType as Reminder['type'],
         title: title.trim(),
@@ -114,18 +117,14 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
       }
 
       let createdReminder: Reminder;
-      
+
       if (editingReminder) {
-        // Редактирование существующего напоминания
         createdReminder = await ApiService.updateReminder(editingReminder.id, reminderData);
-        // Отменяем старое уведомление
         await NotificationService.cancelReminderNotification(editingReminder.id);
       } else {
-        // Создание нового напоминания
         createdReminder = await ApiService.createReminder(userId, reminderData);
       }
 
-      // Планируем уведомление для напоминания
       await NotificationService.scheduleReminderNotification(createdReminder);
 
       onReminderAdded();
@@ -133,7 +132,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
     } catch (error) {
       console.error('Error saving reminder:', error);
       const errorMessage = error instanceof Error ? error.message : t('common.unknownError');
-      Alert.alert(t('common.error'), `${t('addReminder.createError')}: ${errorMessage}`);
+      Alert.alert(t('common.error'), `${t('addReminder.errors.saveFailed')}: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -147,21 +146,11 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
     onClose();
   };
 
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
   const getNextMonthDate = () => {
     const nextMonth = new Date();
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     return nextMonth.toISOString().split('T')[0];
   };
-
-  const formatDateForInput = (date: Date): string => {
-    return date.toISOString().split('T')[0];
-  };
-
 
   return (
     <Modal
@@ -176,123 +165,126 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Icon name="close" size={24} color={COLORS.textMuted} />
-            </TouchableOpacity>
-            <Text style={styles.title}>
+            <Pressable
+              onPress={handleClose}
+              style={({ pressed }) => [styles.headerClose, pressed && styles.pressed]}
+              hitSlop={12}
+            >
+              <Icon name="close" size={22} color={COLORS.textSecondary} />
+            </Pressable>
+            <Text style={styles.headerTitle} numberOfLines={1}>
               {editingReminder ? t('common.edit') : t('addReminder.title')}
             </Text>
-            <View style={styles.placeholder} />
+            <View style={styles.headerSpacer} />
           </View>
 
           <ScrollView
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={{
+              paddingBottom: insets.bottom + SPACING.xxl,
+              paddingHorizontal: SPACING.lg,
+            }}
           >
-              <View style={styles.form}>
-                {/* Type Selection */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>{t('addReminder.serviceType')}</Text>
-                  <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.typeScrollContainer}
-                    contentContainerStyle={styles.typeScrollContent}
-                  >
-                    <View style={styles.typeGrid}>
-                      {reminderTypes.map((type) => (
-                        <TouchableOpacity
-                          key={type.key}
-                          style={[
-                            styles.typeButton,
-                            selectedType === type.key && styles.typeButtonSelected,
-                          ]}
-                          onPress={() => setSelectedType(type.key as Reminder['type'])}
-                        >
-                          <Icon
-                            name={type.icon}
-                            size={20}
-                            color={selectedType === type.key ? COLORS.background : type.color}
-                          />
-                          <Text
-                            style={[
-                              styles.typeButtonText,
-                              selectedType === type.key && styles.typeButtonTextSelected,
-                            ]}
-                          >
-                            {type.title}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-
-                {/* Title */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>{t('addReminder.name')} *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder={t('addReminder.name')}
-                    placeholderTextColor={COLORS.textMuted}
-                  />
-                </View>
-
-                {/* Description */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>{t('addReminder.description')}</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder={t('addReminder.description')}
-                    placeholderTextColor={COLORS.textMuted}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
-
-
-                {/* Next Service */}
-                <View style={styles.section}>
-                  <DateInput
-                    label=""
-                    value={nextServiceDate}
-                    onDateChange={setNextServiceDate}
-                    placeholder={t('addReminder.selectDate')}
-                  />
-                  <View style={styles.quickFillRow}>
-                    <TouchableOpacity
-                      style={styles.quickFillButton}
-                      onPress={() => {
-                        setNextServiceDate(getNextMonthDate());
-                      }}
-                    >
-                      <Icon name="calendar" size={16} color={COLORS.accent} />
-                      <Text style={styles.quickFillText}>{t('addReminder.nextMonth')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+            <View style={styles.form}>
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>{t('addReminder.serviceType')}</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.typeRow}
+                >
+                  {reminderTypes.map((type) => {
+                    const sel = selectedType === type.key;
+                    return (
+                      <TouchableOpacity
+                        key={type.key}
+                        style={[styles.typePill, sel && styles.typePillSelected]}
+                        onPress={() => setSelectedType(type.key as Reminder['type'])}
+                        activeOpacity={0.85}
+                      >
+                        <Icon
+                          name={type.icon}
+                          size={18}
+                          color={sel ? COLORS.background : COLORS.textSecondary}
+                        />
+                        <Text style={[styles.typePillText, sel && styles.typePillTextSelected]} numberOfLines={2}>
+                          {type.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
 
-
-              <View style={styles.buttons}>
-                <Button
-                  title={t('common.cancel')}
-                  onPress={handleClose}
-                  variant="outline"
-                  style={styles.cancelButton}
-                />
-                <Button
-                  title={t('common.save')}
-                  onPress={handleSave}
-                  loading={loading}
-                  style={styles.saveButton}
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>{`${t('addReminder.name')} *`}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder={t('addReminder.name')}
+                  placeholderTextColor={COLORS.textMuted}
+                  selectionColor={COLORS.accent}
                 />
               </View>
+
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>{t('addReminder.description')}</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder={t('addReminder.description')}
+                  placeholderTextColor={COLORS.textMuted}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  selectionColor={COLORS.accent}
+                />
+              </View>
+
+              <View style={styles.fieldBlock}>
+                <DateInput
+                  label={t('addReminder.nextService')}
+                  value={nextServiceDate}
+                  onDateChange={setNextServiceDate}
+                  placeholder={t('addReminder.selectDate')}
+                  labelStyle={styles.fieldLabel}
+                  fieldStyle={styles.dateFieldOverride}
+                />
+                <TouchableOpacity
+                  style={styles.quickFill}
+                  onPress={() => setNextServiceDate(getNextMonthDate())}
+                  activeOpacity={0.85}
+                >
+                  <Icon name="calendar" size={16} color={COLORS.accent} />
+                  <Text style={styles.quickFillText}>{t('addReminder.nextMonth')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+              onPress={handleSave}
+              disabled={loading}
+              activeOpacity={0.9}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.background} />
+              ) : (
+                <Text style={styles.primaryBtnText}>{t('common.save').toUpperCase()}</Text>
+              )}
+            </TouchableOpacity>
+
+            <Button
+              title={t('common.cancel')}
+              onPress={handleClose}
+              variant="outline"
+              style={styles.cancelOutline}
+            />
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -300,151 +292,157 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.card,
-  },
-  closeButton: {
-    padding: SPACING.sm,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    flex: 1,
-    textAlign: 'center',
-  },
-  placeholder: {
-    width: 40, // Для центрирования заголовка
-  },
-  scrollView: {
-    flex: 1,
-  },
-  contentCard: {
-    margin: SPACING.lg,
-  },
-  form: {
-    gap: SPACING.lg,
-    margin: SPACING.lg,
-  },
-  section: {
-    gap: SPACING.sm,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  subLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  typeScrollContainer: {
-    marginBottom: SPACING.sm,
-  },
-  typeScrollContent: {
-    paddingRight: SPACING.md,
-  },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
-    width: '100%',
-  },
-  typeButton: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: SPACING.sm,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    gap: 4,
-    minWidth: 88,
-    maxWidth: 100,
-    height: 84,
-    justifyContent: 'center',
-  },
-  typeButtonSelected: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  typeButtonText: {
-    fontSize: 10,
-    color: COLORS.text,
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 12,
-  },
-  typeButtonTextSelected: {
-    color: COLORS.background,
-  },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: SPACING.md,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  halfWidth: {
-    flex: 1,
-  },
-  quickFillRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  quickFillButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.xs,
-  },
-  quickFillText: {
-    fontSize: 14,
-    color: COLORS.accent,
-    fontWeight: '500',
-  },
-  buttons: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    margin: SPACING.lg,
-  },
-  cancelButton: {
-    flex: 1,
-  },
-  saveButton: {
-    flex: 1,
-  },
-});
+function createStyles() {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: COLORS.background,
+    },
+    keyboardAvoidingView: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+      backgroundColor: COLORS.background,
+    },
+    headerClose: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerSpacer: {
+      width: 44,
+    },
+    pressed: {
+      opacity: 0.65,
+    },
+    headerTitle: {
+      flex: 1,
+      fontFamily: FONTS.bold,
+      fontSize: 18,
+      letterSpacing: -0.3,
+      color: COLORS.text,
+      textAlign: 'center',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    form: {
+      gap: SPACING.lg,
+      paddingTop: SPACING.lg,
+    },
+    fieldBlock: {
+      gap: SPACING.sm,
+    },
+    fieldLabel: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 11,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      color: COLORS.textSecondary,
+    },
+    typeRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      paddingVertical: SPACING.xs,
+    },
+    typePill: {
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+      gap: 6,
+      minWidth: 92,
+      maxWidth: 112,
+    },
+    typePillSelected: {
+      backgroundColor: COLORS.accent,
+      borderColor: COLORS.accent,
+    },
+    typePillText: {
+      fontFamily: FONTS.medium,
+      fontSize: 10,
+      textAlign: 'center',
+      color: COLORS.textSecondary,
+      lineHeight: 13,
+    },
+    typePillTextSelected: {
+      color: COLORS.background,
+    },
+    input: {
+      fontFamily: FONTS.regular,
+      fontSize: 15,
+      color: COLORS.text,
+      backgroundColor: COLORS.surface,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      borderRadius: RADIUS.xl,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: 14,
+    },
+    textArea: {
+      minHeight: 100,
+      paddingTop: 14,
+    },
+    dateFieldOverride: {
+      backgroundColor: COLORS.surface,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+    quickFill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: SPACING.sm,
+      marginTop: SPACING.sm,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+    },
+    quickFillText: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 12,
+      color: COLORS.accent,
+    },
+    primaryBtn: {
+      marginTop: SPACING.xl,
+      backgroundColor: COLORS.accent,
+      borderRadius: 999,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 52,
+    },
+    primaryBtnDisabled: {
+      opacity: 0.75,
+    },
+    primaryBtnText: {
+      fontFamily: FONTS.bold,
+      fontSize: 13,
+      letterSpacing: 1.4,
+      color: COLORS.background,
+    },
+    cancelOutline: {
+      marginTop: SPACING.md,
+      borderRadius: 999,
+    },
+  });
+}
 
 export default ReminderModal;

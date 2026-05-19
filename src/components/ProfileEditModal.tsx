@@ -10,8 +10,10 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Input from './Input';
+import Button from './Button';
+import Icon from './Icon';
 import { COLORS, SPACING } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import ApiService from '../services/api';
@@ -26,6 +28,7 @@ interface ProfileEditModalProps {
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ visible, onClose, user, onSaved }) => {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [currency, setCurrency] = useState('UAH');
@@ -72,16 +75,20 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ visible, onClose, u
       <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
         <KeyboardAvoidingView style={styles.keyboardAvoidingView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.headerIconButton}>
+              <Icon name="close" size={20} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>{t('profile.editProfile')}</Text>
-            <TouchableOpacity onPress={handleSave} disabled={loading}>
-              <Text style={styles.modalSaveText}>{t('common.save')}</Text>
-            </TouchableOpacity>
+            <View style={{ width: 40 }} />
           </View>
 
-          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.modalContent} 
+            keyboardShouldPersistTaps="handled" 
+            showsVerticalScrollIndicator={false}
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.xxl }}
+          >
             <View style={styles.form}>
               <Input label={t('profile.name')} value={name} onChangeText={setName} placeholder={t('profile.name')} />
               <Input label={t('profile.email')} value={email} onChangeText={setEmail} placeholder={t('profile.email')} keyboardType="email-address" />
@@ -98,6 +105,20 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ visible, onClose, u
                   <Text style={styles.pickerArrow}>▼</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+            <View style={styles.buttons}>
+              <Button
+                title={t('common.cancel')}
+                onPress={onClose}
+                variant="outline"
+                style={styles.cancelButton}
+              />
+              <Button
+                title={t('common.save')}
+                onPress={handleSave}
+                loading={loading}
+                style={styles.saveButton}
+              />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -155,6 +176,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  headerIconButton: {
+    padding: SPACING.sm,
+  },
   modalCancelText: {
     color: COLORS.textSecondary,
     fontSize: 16,
@@ -172,6 +196,17 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: SPACING.lg,
+  },
+  buttons: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  cancelButton: {
+    flex: 1,
+  },
+  saveButton: {
+    flex: 1,
   },
   form: {
     gap: SPACING.lg,

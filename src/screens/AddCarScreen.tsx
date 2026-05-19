@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,29 +11,35 @@ import {
   Platform,
   TextInput,
   Keyboard,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Button from '../components/Button';
+import { useNavigation } from '@react-navigation/native';
 import Input from '../components/Input';
 import Modal from 'react-native-modal';
-import Card from '../components/Card';
-import LoadingSpinner from '../components/LoadingSpinner';
 import Icon from '../components/Icon';
-import { COLORS, FONTS, SPACING } from '../constants';
+import ScreenBackLink from '../components/ScreenBackLink';
+import { COLORS, FONTS, SPACING, RADIUS, hexToRgba } from '../constants';
 import ApiService from '../services/api';
 import ExternalApiService from '../services/externalApi';
 import { Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AddCarScreenProps {
   onCarAdded: (vehicle: Vehicle) => void;
   onBack: () => void;
+  navigation?: any;
 }
 
-const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
+const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack, navigation: navigationProp }) => {
   const { t } = useLanguage();
-  const { isGuest, promptToLogin } = useAuth();
+  const { appearanceKey } = useTheme();
+  const styles = useMemo(() => createStyles(), [appearanceKey]);
+  const hookNavigation = useNavigation();
+  const navigation = navigationProp ?? hookNavigation;
+  const { isGuest, promptToLogin, user } = useAuth();
   const [method, setMethod] = useState<'vin' | 'engine' | 'manual'>('vin');
   const [loading, setLoading] = useState(false);
   const [vinLoading, setVinLoading] = useState(false);
@@ -296,6 +302,41 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
         console.log('Vehicle created via API:', vehicle);
         onCarAdded(vehicle);
     } catch (error: any) {
+      const showVehicleLimitAlert = () => {
+        const planType = user?.plan_type || 'free';
+        const message =
+          planType === 'pro'
+            ? t('subscription.vehicleLimitProMessage')
+            : planType === 'premium'
+              ? t('subscription.vehicleLimitPremiumMessage')
+              : t('subscription.vehicleLimitFreeMessage');
+        Alert.alert(t('subscription.proFeature'), message, [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('subscription.upgrade'),
+            onPress: () => navigation.navigate('Subscription'),
+          },
+        ]);
+      };
+
+      // Проверка лимита подписки (это не ошибка, а бизнес-логика)
+      if (error.upgrade_required || error.limit_reached) {
+        showVehicleLimitAlert();
+        return;
+      }
+
+      // Дополнительная проверка по тексту сообщения
+      if (
+        error.message &&
+        (error.message.includes('maximum number of vehicles') ||
+          error.message.includes('requires PRO subscription') ||
+          error.message.includes('requires PREMIUM subscription'))
+      ) {
+        showVehicleLimitAlert();
+        return;
+      }
+      
+      // Только реальные ошибки логируем
       console.error('Error adding vehicle:', error);
       
       // Обрабатываем ошибки валидации от API
@@ -319,440 +360,606 @@ const AddCarScreen: React.FC<AddCarScreenProps> = ({ onCarAdded, onBack }) => {
     }
   };
 
+  const showBack = typeof navigation.canGoBack === 'function' && navigation.canGoBack();
+
   return (
-    <SafeAreaView style={styles.container} edges={['top','left','right','bottom']}>
-      <KeyboardAvoidingView 
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-          <ScrollView 
-            style={styles.scrollView} 
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="always"
-            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-            contentContainerStyle={styles.scrollContent}
-            onScrollBeginDrag={Keyboard.dismiss}
-          >
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          contentContainerStyle={styles.scrollContent}
+          onScrollBeginDrag={Keyboard.dismiss}
+        >
+          {showBack ? <ScreenBackLink onPress={onBack} /> : null}
 
-        <View style={styles.methodSelector}>
-          <TouchableOpacity
-            style={[styles.methodButton, method === 'vin' && styles.methodButtonActive]}
-            onPress={() => setMethod('vin')}
-          >
-            <Text style={[styles.methodButtonText, method === 'vin' && styles.methodButtonTextActive]}>
-              {t('addCar.methodVin')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.methodButton, method === 'engine' && styles.methodButtonActive]}
-            onPress={() => setMethod('engine')}
-          >
-            <Text style={[styles.methodButtonText, method === 'engine' && styles.methodButtonTextActive]}>
-              {t('addCar.methodEngine')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.methodButton, method === 'manual' && styles.methodButtonActive]}
-            onPress={() => setMethod('manual')}
-          >
-            <Text style={[styles.methodButtonText, method === 'manual' && styles.methodButtonTextActive]}>
-              {t('addCar.methodManual')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.form}>
-          {method === 'vin' ? (
-            <Card>
-              <Input
-                label={t('addCar.vin')}
-                value={formData.vin}
-                onChangeText={(value) => handleInputChange('vin', value)}
-                error={errors.vin}
-                autoCapitalize="characters"
-                maxLength={17}
-              />
-              <Button
-                title={t('addCar.decodeVin')}
-                onPress={handleVinDecode}
-                loading={vinLoading}
-                variant="outline"
-              />
-              
-              {/* Показываем декодированные данные */}
-              {(formData.year || formData.maker || formData.model || formData.engine) && (
-                <View style={styles.decodedDataContainer}>
-                  <Text style={styles.decodedDataTitle}>{t('addCar.vinDecoded')}</Text>
-                  {formData.year && (
-                    <View style={styles.decodedDataItem}>
-                      <Text style={styles.decodedDataLabel}>{t('addCar.year')}:</Text>
-                      <Text style={styles.decodedDataValue}>{formData.year}</Text>
-                    </View>
-                  )}
-                  {formData.maker && (
-                    <View style={styles.decodedDataItem}>
-                      <Text style={styles.decodedDataLabel}>{t('addCar.make')}:</Text>
-                      <Text style={styles.decodedDataValue}>{formData.maker}</Text>
-                    </View>
-                  )}
-                  {formData.model && (
-                    <View style={styles.decodedDataItem}>
-                      <Text style={styles.decodedDataLabel}>{t('addCar.model')}:</Text>
-                      <Text style={styles.decodedDataValue}>{formData.model}</Text>
-                    </View>
-                  )}
-                  {formData.engine && (
-                    <View style={styles.decodedDataItem}>
-                      <Text style={styles.decodedDataLabel}>{t('addCar.engine')}:</Text>
-                      <Text style={styles.decodedDataValue}>{formData.engine}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Показываем ошибки валидации для режима VIN */}
-              {(errors.year || errors.make || errors.model || errors.engine) && (
-                <View style={styles.validationErrorsContainer}>
-                  <Text style={styles.validationErrorsTitle}>{t('addCar.validationErrors')}</Text>
-                  {errors.year && <Text style={styles.validationErrorText}>• {errors.year}</Text>}
-                  {errors.make && <Text style={styles.validationErrorText}>• {errors.make}</Text>}
-                  {errors.model && <Text style={styles.validationErrorText}>• {errors.model}</Text>}
-                  {errors.engine && <Text style={styles.validationErrorText}>• {errors.engine}</Text>}
-                </View>
-              )}
-            </Card>
-          ) : method === 'engine' ? (
-            <Card>
-              {/* Existing picker-based flow */}
-              <View style={styles.dropdownContainer}>
-                <Text style={styles.dropdownLabel}>{t('addCar.make')}</Text>
-                <TouchableOpacity
-                  style={[styles.inputLike, {justifyContent: 'space-between', flexDirection: 'row'}]}
-                  onPress={() => openPicker('make')}
-                >
-                  <Text style={styles.dropdownOptionText} numberOfLines={1}>
-                    {engineForm.maker || ''}
-                  </Text>
-                  <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-                {errors.make && <Text style={styles.errorText}>{errors.make}</Text>}
-              </View>
-
-              <View style={styles.dropdownContainer}>
-                <Text style={styles.dropdownLabel}>{t('addCar.model')}</Text>
-                <TouchableOpacity
-                  style={[styles.inputLike, {justifyContent: 'space-between', flexDirection: 'row'}]}
-                  onPress={() => openPicker('model')}
-                >
-                  <Text style={styles.dropdownOptionText} numberOfLines={1}>
-                    {engineForm.model || ''}
-                  </Text>
-                  <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-                {errors.model && <Text style={styles.errorText}>{errors.model}</Text>}
-              </View>
-
-              <View style={styles.dropdownContainer}>
-                <Text style={styles.dropdownLabel}>{t('addCar.engine')}</Text>
-                <TouchableOpacity
-                  style={[styles.inputLike, {justifyContent: 'space-between', flexDirection: 'row'}]}
-                  onPress={() => openPicker('engine')}
-                >
-                  <Text style={styles.dropdownOptionText} numberOfLines={1}>
-                    {engineForm.engine || ''}
-                  </Text>
-                  <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-                {errors.engine && <Text style={styles.errorText}>{errors.engine}</Text>}
-              </View>
-
-              <Input
-                label={t('addCar.year')}
-                value={engineForm.year}
-                onChangeText={(value) => handleYearChange(value)}
-                error={errors.year}
-                keyboardType="numeric"
-              />
-            </Card>
-          ) : (
-            <Card style={{ zIndex: 10 }}>
-              {/* Pure manual text inputs */}
-              <View pointerEvents="box-none">
-              <Input
-                label={t('addCar.make')}
-                value={manualForm.maker}
-                onChangeText={(value) => {
-                  console.log('manual make input:', value);
-                  setManualForm(prev => ({ ...prev, maker: value }));
-                }}
-                error={errors.make}
-                editable={true}
-                autoCorrect={false}
-                autoCapitalize="words"
-                containerStyle={{ zIndex: 20 }}
-                inputStyle={{ zIndex: 20 }}
-                keyboardType="default"
-                autoComplete="off"
-                textContentType="none"
-                returnKeyType="done"
-                blurOnSubmit={true}
-                enablesReturnKeyAutomatically={true}
-              />
-              <Input
-                label={t('addCar.model')}
-                value={manualForm.model}
-                onChangeText={(value) => {
-                  console.log('manual model input:', value);
-                  setManualForm(prev => ({ ...prev, model: value }));
-                }}
-                error={errors.model}
-                editable={true}
-                autoCorrect={false}
-                autoCapitalize="characters"
-                containerStyle={{ zIndex: 20 }}
-                inputStyle={{ zIndex: 20 }}
-                keyboardType="default"
-                autoComplete="off"
-                textContentType="none"
-                onFocus={() => console.log('manual model focus')}
-              />
-              <Input
-                label={t('addCar.year')}
-                value={manualForm.year}
-                onChangeText={(value) => handleYearChange(value)}
-                error={errors.year}
-                keyboardType="numeric"
-                editable={true}
-              />
-              </View>
-            </Card>
-          )}
-
-          <Input
-            label={t('addCar.mileage')}
-            value={formData.mileage}
-            onChangeText={(value) => handleInputChange('mileage', value)}
-            error={errors.mileage}
-            keyboardType="numeric"
-          />
-
-          <Button
-            title={t('common.add')}
-            onPress={handleSubmit}
-            loading={loading}
-            style={styles.submitButton}
-          />
-
-        </View>
-
-        {/* Modal Picker */}
-        <Modal isVisible={picker.visible} onBackdropPress={() => setPicker(prev => ({...prev, visible: false}))}>
-          <View style={{ backgroundColor: COLORS.card, borderRadius: 8, padding: SPACING.md }}>
-            <Text style={{ color: COLORS.text, fontWeight: 'bold', fontSize: 16, marginBottom: SPACING.sm }}>
-              {picker.type === 'make' ? t('addCar.make') : picker.type === 'model' ? t('addCar.model') : t('addCar.engine')}
-            </Text>
-            <View style={styles.searchInputContainer}>
-              <TextInput
-                style={styles.searchTextInput}
-                value={search}
-                onChangeText={setSearch}
-              />
-              <Icon name="search" size={16} color={COLORS.textSecondary} />
-            </View>
-            <ScrollView style={{ maxHeight: 300, marginTop: SPACING.sm }}>
-              {picker.items
-                .filter((it) => it.toLowerCase().includes(search.toLowerCase()))
-                .map((it, idx) => {
-                  const label = it;
-                  const selected = (picker.type === 'make' && engineForm.maker === label)
-                    || (picker.type === 'model' && engineForm.model === label)
-                    || (picker.type === 'engine' && engineForm.engine === label);
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}
-                      onPress={() => {
-                        if (picker.type === 'make') handleMakeChangeEngine(label);
-                        if (picker.type === 'model') handleModelChangeEngine(label);
-                        if (picker.type === 'engine') handleTrimChange({ engine: label });
-                        setPicker(prev => ({...prev, visible: false}));
-                      }}
-                    >
-                      <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: COLORS.accent, marginRight: 10, alignItems: 'center', justifyContent: 'center' }}>
-                        {selected && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.accent }} />}
-                      </View>
-                      <Text style={{ color: COLORS.text }}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-            </ScrollView>
+          <View style={styles.pageHeader}>
+            <Text style={styles.pageTitle}>{t('addCar.title')}</Text>
+            <Text style={styles.pageSub}>{t('addCar.pageSubtitle')}</Text>
           </View>
-        </Modal>
-          </ScrollView>
+
+          <View style={styles.methodSegment}>
+            <TouchableOpacity
+              style={[styles.methodChip, method === 'vin' && styles.methodChipActive]}
+              onPress={() => setMethod('vin')}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.methodChipText, method === 'vin' && styles.methodChipTextActive]}>
+                {t('addCar.methodVin')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.methodChip, method === 'engine' && styles.methodChipActive]}
+              onPress={() => setMethod('engine')}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[styles.methodChipText, method === 'engine' && styles.methodChipTextActive]}
+              >
+                {t('addCar.methodEngine')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.methodChip, method === 'manual' && styles.methodChipActive]}
+              onPress={() => setMethod('manual')}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[styles.methodChipText, method === 'manual' && styles.methodChipTextActive]}
+              >
+                {t('addCar.methodManual')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.formStack}>
+            {method === 'vin' ? (
+              <View style={styles.panel}>
+                <Input
+                  label={t('addCar.vin')}
+                  labelStyle={styles.fieldLabel}
+                  containerStyle={styles.inputContainer}
+                  inputStyle={styles.inputField}
+                  value={formData.vin}
+                  onChangeText={(value) => handleInputChange('vin', value)}
+                  error={errors.vin}
+                  autoCapitalize="characters"
+                  maxLength={17}
+                />
+                <TouchableOpacity
+                  style={[styles.outlineBtn, vinLoading && styles.btnMuted]}
+                  onPress={handleVinDecode}
+                  disabled={vinLoading}
+                  activeOpacity={0.9}
+                >
+                  {vinLoading ? (
+                    <ActivityIndicator color={COLORS.accent} />
+                  ) : (
+                    <Text style={styles.outlineBtnText}>{t('addCar.decodeVin')}</Text>
+                  )}
+                </TouchableOpacity>
+
+                {(formData.year || formData.maker || formData.model || formData.engine) ? (
+                  <View style={styles.decodedBox}>
+                    <Text style={styles.decodedTitle}>{t('addCar.vinDecoded')}</Text>
+                    {formData.year ? (
+                      <View style={styles.decodedRow}>
+                        <Text style={styles.decodedLabel}>{t('addCar.year')}</Text>
+                        <Text style={styles.decodedValue}>{formData.year}</Text>
+                      </View>
+                    ) : null}
+                    {formData.maker ? (
+                      <View style={styles.decodedRow}>
+                        <Text style={styles.decodedLabel}>{t('addCar.make')}</Text>
+                        <Text style={styles.decodedValue}>{formData.maker}</Text>
+                      </View>
+                    ) : null}
+                    {formData.model ? (
+                      <View style={styles.decodedRow}>
+                        <Text style={styles.decodedLabel}>{t('addCar.model')}</Text>
+                        <Text style={styles.decodedValue}>{formData.model}</Text>
+                      </View>
+                    ) : null}
+                    {formData.engine ? (
+                      <View style={styles.decodedRow}>
+                        <Text style={styles.decodedLabel}>{t('addCar.engine')}</Text>
+                        <Text style={styles.decodedValue}>{formData.engine}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {(errors.year || errors.make || errors.model || errors.engine) ? (
+                  <View style={styles.validationBox}>
+                    <Text style={styles.validationTitle}>{t('addCar.validationErrors')}</Text>
+                    {errors.year ? (
+                      <Text style={styles.validationLine}>• {errors.year}</Text>
+                    ) : null}
+                    {errors.make ? (
+                      <Text style={styles.validationLine}>• {errors.make}</Text>
+                    ) : null}
+                    {errors.model ? (
+                      <Text style={styles.validationLine}>• {errors.model}</Text>
+                    ) : null}
+                    {errors.engine ? (
+                      <Text style={styles.validationLine}>• {errors.engine}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            ) : method === 'engine' ? (
+              <View style={styles.panel}>
+                <View style={styles.selectBlock}>
+                  <Text style={styles.fieldLabel}>{t('addCar.make')}</Text>
+                  <TouchableOpacity
+                    style={styles.selectRow}
+                    onPress={() => openPicker('make')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.selectRowText} numberOfLines={1}>
+                      {engineForm.maker || ''}
+                    </Text>
+                    <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                  {errors.make ? <Text style={styles.fieldError}>{errors.make}</Text> : null}
+                </View>
+
+                <View style={styles.selectBlock}>
+                  <Text style={styles.fieldLabel}>{t('addCar.model')}</Text>
+                  <TouchableOpacity
+                    style={styles.selectRow}
+                    onPress={() => openPicker('model')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.selectRowText} numberOfLines={1}>
+                      {engineForm.model || ''}
+                    </Text>
+                    <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                  {errors.model ? <Text style={styles.fieldError}>{errors.model}</Text> : null}
+                </View>
+
+                <View style={styles.selectBlock}>
+                  <Text style={styles.fieldLabel}>{t('addCar.engine')}</Text>
+                  <TouchableOpacity
+                    style={styles.selectRow}
+                    onPress={() => openPicker('engine')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.selectRowText} numberOfLines={1}>
+                      {engineForm.engine || ''}
+                    </Text>
+                    <Icon name="chevron-right" size={16} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                  {errors.engine ? <Text style={styles.fieldError}>{errors.engine}</Text> : null}
+                </View>
+
+                <Input
+                  label={t('addCar.year')}
+                  labelStyle={styles.fieldLabel}
+                  containerStyle={styles.inputContainer}
+                  inputStyle={styles.inputField}
+                  value={engineForm.year}
+                  onChangeText={(value) => handleYearChange(value)}
+                  error={errors.year}
+                  keyboardType="numeric"
+                />
+              </View>
+            ) : (
+              <View style={[styles.panel, styles.panelElevated]}>
+                <Input
+                  label={t('addCar.make')}
+                  labelStyle={styles.fieldLabel}
+                  containerStyle={styles.inputContainer}
+                  inputStyle={styles.inputField}
+                  value={manualForm.maker}
+                  onChangeText={(value) => {
+                    setManualForm((prev) => ({ ...prev, maker: value }));
+                  }}
+                  error={errors.make}
+                  editable={true}
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  keyboardType="default"
+                  autoComplete="off"
+                  textContentType="none"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                  enablesReturnKeyAutomatically={true}
+                />
+                <Input
+                  label={t('addCar.model')}
+                  labelStyle={styles.fieldLabel}
+                  containerStyle={styles.inputContainer}
+                  inputStyle={styles.inputField}
+                  value={manualForm.model}
+                  onChangeText={(value) => {
+                    setManualForm((prev) => ({ ...prev, model: value }));
+                  }}
+                  error={errors.model}
+                  editable={true}
+                  autoCorrect={false}
+                  autoCapitalize="characters"
+                  keyboardType="default"
+                  autoComplete="off"
+                  textContentType="none"
+                />
+                <Input
+                  label={t('addCar.year')}
+                  labelStyle={styles.fieldLabel}
+                  containerStyle={styles.inputContainer}
+                  inputStyle={styles.inputField}
+                  value={manualForm.year}
+                  onChangeText={(value) => handleYearChange(value)}
+                  error={errors.year}
+                  keyboardType="numeric"
+                  editable={true}
+                />
+              </View>
+            )}
+
+            <Input
+              label={t('addCar.mileage')}
+              labelStyle={styles.fieldLabel}
+              containerStyle={styles.inputContainer}
+              inputStyle={styles.inputField}
+              value={formData.mileage}
+              onChangeText={(value) => handleInputChange('mileage', value)}
+              error={errors.mileage}
+              keyboardType="numeric"
+            />
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.btnMuted]}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.9}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.background} />
+              ) : (
+                <Text style={styles.primaryBtnText}>{t('common.add').toUpperCase()}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Modal
+            isVisible={picker.visible}
+            onBackdropPress={() => setPicker((prev) => ({ ...prev, visible: false }))}
+          >
+            <View style={styles.pickerSheet}>
+              <Text style={styles.pickerTitle}>
+                {picker.type === 'make'
+                  ? t('addCar.make')
+                  : picker.type === 'model'
+                    ? t('addCar.model')
+                    : t('addCar.engine')}
+              </Text>
+              <View style={styles.pickerSearchRow}>
+                <TextInput
+                  style={styles.pickerSearchInput}
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholderTextColor={COLORS.textMuted}
+                />
+                <Icon name="search" size={16} color={COLORS.textSecondary} />
+              </View>
+              <ScrollView style={styles.pickerList}>
+                {picker.items
+                  .filter((it) => it.toLowerCase().includes(search.toLowerCase()))
+                  .map((it, idx) => {
+                    const label = it;
+                    const selected =
+                      (picker.type === 'make' && engineForm.maker === label) ||
+                      (picker.type === 'model' && engineForm.model === label) ||
+                      (picker.type === 'engine' && engineForm.engine === label);
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.pickerItem}
+                        onPress={() => {
+                          if (picker.type === 'make') handleMakeChangeEngine(label);
+                          if (picker.type === 'model') handleModelChangeEngine(label);
+                          if (picker.type === 'engine') handleTrimChange({ engine: label });
+                          setPicker((prev) => ({ ...prev, visible: false }));
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.pickerRadioOuter}>
+                          {selected ? <View style={styles.pickerRadioInner} /> : null}
+                        </View>
+                        <Text style={styles.pickerItemLabel}>{label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+            </View>
+          </Modal>
+        </ScrollView>
       </KeyboardAvoidingView>
+
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: SPACING.xl,
-  },
-  methodSelector: {
-    flexDirection: 'row',
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: 4,
-  },
-  methodButton: {
-    flex: 1,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  methodButtonActive: {
-    backgroundColor: COLORS.accent,
-  },
-  methodButtonText: {
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-  },
-  methodButtonTextActive: {
-    color: COLORS.background,
-  },
-  form: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xs,
-    paddingBottom: SPACING.lg,
-  },
-  dropdownContainer: {
-    marginBottom: SPACING.lg,
-  },
-  dropdownLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  dropdownOption: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    marginRight: SPACING.sm,
-    backgroundColor: COLORS.background,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputLike: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.card,
-    minHeight: 48,
-  },
-  dropdownOptionActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  dropdownOptionText: {
-    color: COLORS.text,
-    fontSize: 14,
-  },
-  dropdownOptionTextActive: {
-    color: COLORS.background,
-    fontWeight: '500',
-  },
-  errorText: {
-    color: COLORS.error,
-    fontSize: 14,
-    marginTop: SPACING.xs,
-  },
-  submitButton: {
-    marginTop: SPACING.lg,
-  },
-  decodedDataContainer: {
-    marginTop: SPACING.lg,
-    padding: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
-  decodedDataTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    marginBottom: SPACING.sm,
-  },
-  decodedDataItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: SPACING.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  decodedDataLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-  },
-  decodedDataValue: {
-    fontSize: 14,
-    color: COLORS.text,
-    fontWeight: '600',
-  },
-  validationErrorsContainer: {
-    marginTop: SPACING.md,
-    padding: SPACING.md,
-    backgroundColor: COLORS.error + '20',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-  },
-  validationErrorsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.error,
-    marginBottom: SPACING.xs,
-  },
-  validationErrorText: {
-    fontSize: 13,
-    color: COLORS.error,
-    marginBottom: SPACING.xs,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.background,
-  },
-  searchTextInput: {
-    flex: 1,
-    color: COLORS.text,
-    paddingVertical: SPACING.sm,
-    marginRight: SPACING.sm,
-  },
-});
+function createStyles() {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: COLORS.background,
+    },
+    keyboardAvoidingView: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.xxl,
+    },
+    pageHeader: {
+      paddingTop: SPACING.sm,
+      marginBottom: SPACING.lg,
+    },
+    pageTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 28,
+      letterSpacing: -0.4,
+      color: COLORS.text,
+      marginBottom: 6,
+    },
+    pageSub: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.textSecondary,
+      lineHeight: 20,
+    },
+    methodSegment: {
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      padding: 4,
+      marginBottom: SPACING.lg,
+      backgroundColor: COLORS.surface,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+    methodChip: {
+      flex: 1,
+      paddingVertical: SPACING.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: RADIUS.lg,
+    },
+    methodChipActive: {
+      backgroundColor: COLORS.accent,
+    },
+    methodChipText: {
+      fontFamily: FONTS.medium,
+      fontSize: 11,
+      color: COLORS.textSecondary,
+      textAlign: 'center',
+    },
+    methodChipTextActive: {
+      color: COLORS.background,
+    },
+    formStack: {
+      gap: SPACING.lg,
+    },
+    panel: {
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+      padding: SPACING.md,
+      gap: SPACING.md,
+    },
+    panelElevated: {
+      zIndex: 10,
+    },
+    fieldLabel: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 11,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      color: COLORS.textSecondary,
+    },
+    inputContainer: {
+      marginBottom: 0,
+    },
+    inputField: {
+      borderRadius: RADIUS.xl,
+      backgroundColor: COLORS.background,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      fontFamily: FONTS.regular,
+      fontSize: 15,
+    },
+    selectBlock: {
+      gap: SPACING.sm,
+    },
+    selectRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      borderRadius: RADIUS.xl,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: 14,
+      backgroundColor: COLORS.background,
+      minHeight: 48,
+    },
+    selectRowText: {
+      flex: 1,
+      fontFamily: FONTS.regular,
+      fontSize: 15,
+      color: COLORS.text,
+      marginRight: SPACING.sm,
+    },
+    fieldError: {
+      color: COLORS.error,
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      marginTop: SPACING.xs,
+    },
+    outlineBtn: {
+      borderRadius: 999,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.background,
+      minHeight: 48,
+    },
+    outlineBtnText: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 13,
+      color: COLORS.accent,
+    },
+    btnMuted: {
+      opacity: 0.75,
+    },
+    decodedBox: {
+      padding: SPACING.md,
+      backgroundColor: hexToRgba(COLORS.accent, 0.08),
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: hexToRgba(COLORS.accent, 0.35),
+      gap: SPACING.xs,
+    },
+    decodedTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 13,
+      color: COLORS.accent,
+      marginBottom: SPACING.xs,
+    },
+    decodedRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: SPACING.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+    },
+    decodedLabel: {
+      fontFamily: FONTS.medium,
+      fontSize: 13,
+      color: COLORS.textSecondary,
+    },
+    decodedValue: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 13,
+      color: COLORS.text,
+      flex: 1,
+      textAlign: 'right',
+      marginLeft: SPACING.md,
+    },
+    validationBox: {
+      padding: SPACING.md,
+      backgroundColor: hexToRgba(COLORS.error, 0.12),
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.error,
+      gap: SPACING.xs,
+    },
+    validationTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 13,
+      color: COLORS.error,
+    },
+    validationLine: {
+      fontFamily: FONTS.regular,
+      fontSize: 13,
+      color: COLORS.error,
+    },
+    primaryBtn: {
+      backgroundColor: COLORS.accent,
+      borderRadius: 999,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 52,
+    },
+    primaryBtnText: {
+      fontFamily: FONTS.bold,
+      fontSize: 13,
+      letterSpacing: 1.4,
+      color: COLORS.background,
+    },
+    pickerSheet: {
+      backgroundColor: COLORS.surface,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.md,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+    pickerTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 16,
+      letterSpacing: -0.2,
+      color: COLORS.text,
+      marginBottom: SPACING.sm,
+    },
+    pickerSearchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      borderRadius: RADIUS.xl,
+      paddingHorizontal: SPACING.md,
+      backgroundColor: COLORS.background,
+    },
+    pickerSearchInput: {
+      flex: 1,
+      color: COLORS.text,
+      paddingVertical: SPACING.sm,
+      marginRight: SPACING.sm,
+      fontFamily: FONTS.regular,
+      fontSize: 15,
+    },
+    pickerList: {
+      maxHeight: 300,
+      marginTop: SPACING.sm,
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: SPACING.md,
+    },
+    pickerRadioOuter: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: COLORS.accent,
+      marginRight: SPACING.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pickerRadioInner: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: COLORS.accent,
+    },
+    pickerItemLabel: {
+      fontFamily: FONTS.regular,
+      fontSize: 15,
+      color: COLORS.text,
+      flex: 1,
+    },
+  });
+}
 
 export default AddCarScreen;
+

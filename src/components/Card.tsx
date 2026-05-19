@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,7 +8,8 @@ import {
   TouchableOpacityProps,
   StyleProp,
 } from 'react-native';
-import { COLORS, SPACING } from '../constants';
+import { COLORS, SPACING, RADIUS } from '../constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CardProps extends TouchableOpacityProps {
   children: React.ReactNode;
@@ -16,6 +18,24 @@ interface CardProps extends TouchableOpacityProps {
 }
 
 const Card: React.FC<CardProps> = ({ children, style, onPress, ...props }) => {
+  const { appearanceKey } = useTheme();
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        card: {
+          backgroundColor: COLORS.card,
+          borderRadius: RADIUS.card,
+          padding: SPACING.md,
+          marginBottom: SPACING.md,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+        },
+        pressable: {},
+      }),
+    [appearanceKey]
+  );
+
   if (onPress) {
     return (
       <TouchableOpacity
@@ -35,19 +55,5 @@ const Card: React.FC<CardProps> = ({ children, style, onPress, ...props }) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  pressable: {
-    // Additional styles for pressable cards
-  },
-});
 
 export default Card;

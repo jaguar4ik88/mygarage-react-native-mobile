@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,114 +8,105 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Card from '../components/Card';
-import Button from '../components/Button';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { useNavigation } from '@react-navigation/native';
 import Icon from '../components/Icon';
-import AnimatedView from '../components/AnimatedView';
+import ScreenBackLink from '../components/ScreenBackLink';
 import ReminderModal from '../components/ReminderModal';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS, ACTION_COLORS, hexToRgba } from '../constants';
 import ApiService from '../services/api';
-import { Reminder } from '../types';
+import { Reminder, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import Analytics from '../services/analyticsService';
 import NotificationService from '../services/notificationService';
-import FeatureGate from '../components/FeatureGate';
+import { useTheme } from '../contexts/ThemeContext';
 
-interface RemindersScreenProps {}
+/** Дней до даты (локальный полдень), отрицательное = просрочено */
+function daysUntilDue(dateStr: string): number {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - now.getTime()) / 86400000);
+}
+
+function isUrgentReminder(reminder: Reminder): boolean {
+  if (!reminder.is_active) return false;
+  const days = daysUntilDue(reminder.next_service_date);
+  return days <= 14;
+}
+
+interface RemindersScreenProps {
+  navigation?: unknown;
+}
 
 const RemindersScreen: React.FC<RemindersScreenProps> = () => {
+  const navigation = useNavigation();
   const { t, language } = useLanguage();
-  const { isGuest, promptToLogin } = useAuth();
+  const { appearanceKey } = useTheme();
+  const { isGuest, promptToLogin, user } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [vehicleById, setVehicleById] = useState<Record<number, Vehicle>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
-  const [userId, setUserId] = useState<number | null>(null);
+
+  const styles = useMemo(() => createStyles(), [appearanceKey]);
 
   useEffect(() => {
-    loadData();
-    checkNotificationPermissions();
-    
-    // Устанавливаем колбэк для обновления статуса напоминаний
+    setLoading(false);
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
     NotificationService.setReminderStatusUpdateCallback(updateReminderStatus);
+  }, []);
+
+  const updateReminderStatus = useCallback((reminderId: number, isActive: boolean) => {
+    setReminders((prev) =>
+      prev.map((r) => (r.id === reminderId ? { ...r, is_active: isActive } : r))
+    );
   }, []);
 
   const checkNotificationPermissions = async () => {
     try {
       const { status } = await NotificationService.getPermissions();
-      console.log('Notification permissions status:', status);
       if (status !== 'granted') {
-        Alert.alert(
-          'Уведомления отключены',
-          'Для получения напоминаний включите уведомления в настройках приложения',
-          [{ text: 'OK' }]
-        );
+        Alert.alert(t('reminders.error'), t('reminders.notificationsHint'), [
+          { text: t('common.ok') },
+        ]);
       }
     } catch (error) {
       console.error('Error checking notification permissions:', error);
     }
   };
 
+  useEffect(() => {
+    checkNotificationPermissions();
+  }, []);
+
   const loadData = async () => {
+    if (!user?.id) return;
     try {
-      setLoading(true);
-      // Get current user first
-      const user = await ApiService.getProfile();
-      setUserId(user.id);
-      
-      // Load reminders
-      const data = await ApiService.getReminders(user.id);
-      
-      
-      // Бэкенд уже деактивирует просроченные напоминания и сортирует их
+      const [data, vehicles] = await Promise.all([
+        ApiService.getReminders(user.id),
+        ApiService.getVehicles(),
+      ]);
       setReminders(data);
-      
-      // Планируем уведомления для всех напоминаний (только если сервис инициализирован)
+      setVehicleById(Object.fromEntries(vehicles.map((v) => [v.id, v])));
+
       try {
         await NotificationService.scheduleAllReminders(data);
-      } catch (notificationError) {
-        console.warn('Failed to schedule notifications:', notificationError);
-        // Не блокируем загрузку данных из-за проблем с уведомлениями
+      } catch (e) {
+        console.warn('Failed to schedule notifications:', e);
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert(t('reminders.error'), t('reminders.failedToLoadReminders'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Функция для обновления статуса напоминания
-  const updateReminderStatus = (reminderId: number, isActive: boolean) => {
-    setReminders(prevReminders => 
-      prevReminders.map(reminder => 
-        reminder.id === reminderId 
-          ? { ...reminder, is_active: isActive }
-          : reminder
-      )
-    );
-  };
-
-  const loadReminders = async () => {
-    if (!userId) return;
-    
-    try {
-      setLoading(true);
-      const data = await ApiService.getReminders(userId);
-      setReminders(data);
-      
-      // Планируем уведомления для всех напоминаний
-      await NotificationService.scheduleAllReminders(data);
-    } catch (error) {
-      console.error('Error loading reminders:', error);
-      Alert.alert(t('reminders.error'), t('reminders.failedToLoadReminders'));
     } finally {
       setLoading(false);
     }
@@ -127,59 +118,31 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
     setRefreshing(false);
   };
 
-
   const handleDeleteReminder = async (reminderId: number) => {
-    Alert.alert(
-      t('reminders.deleteReminder'),
-      t('reminders.deleteConfirm'),
-      [
-        { text: t('reminders.cancel'), style: 'cancel' },
-        {
-          text: t('reminders.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await ApiService.deleteReminder(reminderId);
-              await Analytics.track('reminder_delete', { reminder_id: reminderId });
-              await loadData();
-            } catch (error) {
-              console.error('Error deleting reminder:', error);
-              Alert.alert(t('reminders.error'), t('reminders.failedToDeleteReminder'));
-            }
-          },
+    Alert.alert(t('reminders.deleteReminder'), t('reminders.deleteConfirm'), [
+      { text: t('reminders.cancel'), style: 'cancel' },
+      {
+        text: t('reminders.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await ApiService.deleteReminder(reminderId);
+            await Analytics.track('reminder_delete', { reminder_id: reminderId });
+            await loadData();
+          } catch (error) {
+            console.error('Error deleting reminder:', error);
+            Alert.alert(t('reminders.error'), t('reminders.failedToDeleteReminder'));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleAddReminder = () => {
-    // Проверка на гостевой режим
     if (isGuest) {
-      console.log('👤 Guest trying to add reminder, showing login prompt');
       promptToLogin();
       return;
     }
-    
-    // Check reminder limit for free plan
-    if (reminders.length >= 5 && userId) {
-      // This would be replaced with actual user plan check
-      Alert.alert(
-        t('subscription.upgradeRequired'),
-        'Бесплатный план позволяет создать только 5 напоминаний. Обновитесь до Pro для неограниченного количества.',
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: 'Обновить', onPress: () => {/* Navigate to subscription screen */} }
-        ]
-      );
-      return;
-    }
-    
-    setEditingReminder(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEditReminder = (reminder: Reminder) => {
-    setEditingReminder(reminder);
     setIsModalOpen(true);
   };
 
@@ -188,315 +151,314 @@ const RemindersScreen: React.FC<RemindersScreenProps> = () => {
     loadData();
   };
 
-
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
-    return date.toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US', {
+    const locale =
+      language === 'uk' ? 'uk-UA' : language === 'ru' ? 'ru-RU' : 'en-US';
+    return date.toLocaleDateString(locale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     });
   };
 
-  const deriveStatus = (reminder: Reminder): 'completed' | 'pending' => {
-    if (!reminder.is_active) return 'completed';
-    return 'pending';
+  /** Активные (ещё не отработаны) — срочные выше, затем по дате */
+  const activeSorted = useMemo(() => {
+    return reminders
+      .filter((r) => r.is_active)
+      .sort((a, b) => {
+        const ua = isUrgentReminder(a) ? 0 : 1;
+        const ub = isUrgentReminder(b) ? 0 : 1;
+        if (ua !== ub) return ua - ub;
+        return (
+          new Date(a.next_service_date).getTime() - new Date(b.next_service_date).getTime()
+        );
+      });
+  }, [reminders]);
+
+  /** Отработанные — новее сверху */
+  const archivedSorted = useMemo(() => {
+    return reminders
+      .filter((r) => !r.is_active)
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+  }, [reminders]);
+
+  const reminderTitle = (r: Reminder) =>
+    r.title?.trim() ? r.title : t(`reminders.types.${r.type}`);
+
+  const vehicleLabel = (vehicleId: number) => {
+    const v = vehicleById[vehicleId];
+    if (!v) return t('reminders.unknownVehicle');
+    return `${v.make} ${v.model}`.trim() || t('reminders.unknownVehicle');
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return COLORS.success; // Зеленый для отработанных
-      case 'pending':
-        return COLORS.error; // Красный для ожидающих
-      default:
-        return COLORS.textMuted;
-    }
+  const renderReminderRow = (reminder: Reminder, opts: { allowUrgent: boolean }) => {
+    const urgent = opts.allowUrgent && reminder.is_active && isUrgentReminder(reminder);
+    const muted = !reminder.is_active;
+    const subtitle = `${vehicleLabel(reminder.vehicle_id)} · ${formatDate(
+      reminder.next_service_date
+    )}`;
+
+    return (
+      <View key={reminder.id} style={[styles.row, muted && styles.rowMuted]}>
+        <View
+          style={[styles.iconWrap, urgent ? styles.iconWrapUrgent : styles.iconWrapNormal]}
+        >
+          <Icon
+            name={reminder.type}
+            size={22}
+            color={urgent ? COLORS.background : COLORS.textSecondary}
+          />
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={[styles.rowTitle, muted && styles.rowTitleMuted]} numberOfLines={1}>
+            {reminderTitle(reminder)}
+          </Text>
+          <Text style={styles.rowSub} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => handleDeleteReminder(reminder.id)}
+          style={styles.deleteBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('reminders.delete')}
+        >
+          <Icon name="delete" size={18} color={ACTION_COLORS.colorDelete} />
+        </TouchableOpacity>
+      </View>
+    );
   };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return t('reminders.completed');
-      case 'pending':
-        return t('reminders.pending');
-      default:
-        return status;
-    }
-  };
-
-  const getReminderCardStyle = (reminder: Reminder) => {
-    const status = deriveStatus(reminder);
-    if (status === 'pending') {
-      return styles.pendingReminderCard;
-    } else if (status === 'completed') {
-      return styles.completedReminderCard;
-    }
-    return styles.reminderCard;
-  };
-
-
-  if (loading) {
-    return <LoadingSpinner text={t('common.loading')} />;
-  }
 
   return (
-     <SafeAreaView style={styles.container} edges={['left','right']}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing || loading} onRefresh={handleRefresh} />
+        }
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        <ScrollView 
-          style={styles.scrollView} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent}
-        >
+        {navigation.canGoBack() ? (
+          <ScreenBackLink onPress={() => navigation.goBack()} />
+        ) : null}
 
-        <AnimatedView animation="fadeIn" delay={0}>
-          <View style={styles.addButtonContainer}>
-            <Button
-              title={t('reminders.addReminder')}
-              onPress={handleAddReminder}
-              variant="outline"
-              style={styles.addReminderButton}
-            />
+        <View style={styles.pageHeader}>
+          <View style={styles.pageHeaderText}>
+            <Text style={styles.pageTitle}>{t('reminders.title')}</Text>
+            <Text style={styles.pageSub}>{t('reminders.pageSubtitle')}</Text>
           </View>
+          {!isGuest ? (
+            <TouchableOpacity
+              onPress={handleAddReminder}
+              style={styles.addFab}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('reminders.addReminder')}
+            >
+              <Icon name="plus" size={20} color={COLORS.background} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
-            {reminders.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Icon name="notification" size={48} color={COLORS.textMuted} />
-                <Text style={styles.emptyTitle}>{t('reminders.noReminders')}</Text>
-                <Text style={styles.emptyText}>
-                  {t('reminders.noRemindersText')}
+        {loading && reminders.length === 0 ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+          </View>
+        ) : reminders.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="notification" size={48} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>{t('reminders.noReminders')}</Text>
+            <Text style={styles.emptyText}>{t('reminders.noRemindersText')}</Text>
+          </View>
+        ) : (
+          <View style={styles.sections}>
+            {activeSorted.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionHeading}>
+                  {t('reminders.sectionSoon').toUpperCase()}
                 </Text>
+                <View style={styles.sectionList}>
+                  {activeSorted.map((r) => renderReminderRow(r, { allowUrgent: true }))}
+                </View>
               </View>
-            ) : (
-              <View style={styles.remindersList}>
-                {reminders.map((reminder, index) => (
-                  <AnimatedView
-                    key={reminder.id}
-                    animation="slideInRight"
-                    delay={index * 100}
-                  >
-                    <Card style={getReminderCardStyle(reminder)}>
-                      <View style={styles.reminderHeader}>
-                        <View style={styles.reminderInfo}>
-                          <View style={styles.reminderTitleRow}>
-                            <View style={styles.reminderTitleWithIcon}>
-                              <Icon 
-                                name={reminder.type} 
-                                size={20} 
-                                color={deriveStatus(reminder) === 'completed' ? COLORS.textMuted : COLORS.accent} 
-                              />
-                              <Text style={[
-                                styles.reminderTitle,
-                                deriveStatus(reminder) === 'completed' && styles.completedTitle
-                              ]}>
-                                {reminder.title}
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={[
-                            styles.reminderDescription,
-                            deriveStatus(reminder) === 'completed' && styles.completedDescription
-                          ]}>
-                            {reminder.description}
-                          </Text>
-                        </View>
-                        <View style={styles.reminderActions}>
-                          <TouchableOpacity
-                            onPress={() => handleEditReminder(reminder)}
-                            style={styles.actionButton}
-                          >
-                            <Icon name="edit" size={16} color={COLORS.text} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => handleDeleteReminder(reminder.id)}
-                            style={styles.actionButton}
-                          >
-                            <Icon name="delete" size={16} color={COLORS.error} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.reminderDetails}>
-                        <View style={styles.reminderDetail}>
-                          <Icon name="calendar" size={14} color={COLORS.textMuted} />
-                          <Text style={styles.reminderDetailText}>
-                            {formatDate(reminder.next_service_date)}
-                          </Text>
-                        </View>
-                        
-                        
-                        <View style={styles.reminderDetail}>
-                          <View
-                            style={[
-                              styles.statusIndicator,
-                              { backgroundColor: getStatusColor(deriveStatus(reminder)) },
-                            ]}
-                          />
-                          <Text style={styles.reminderDetailText}>
-                            {getStatusText(deriveStatus(reminder))}
-                          </Text>
-                        </View>
-                      </View>
-                    </Card>
-                  </AnimatedView>
-                ))}
+            ) : null}
+
+            {archivedSorted.length > 0 ? (
+              <View
+                style={[styles.section, activeSorted.length > 0 && styles.sectionDivider]}
+              >
+                <Text style={styles.sectionHeading}>
+                  {t('reminders.sectionArchive').toUpperCase()}
+                </Text>
+                <View style={styles.sectionList}>
+                  {archivedSorted.map((r) => renderReminderRow(r, { allowUrgent: false }))}
+                </View>
               </View>
-            )}
-        </AnimatedView>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            ) : null}
+          </View>
+        )}
+      </ScrollView>
 
       <ReminderModal
         visible={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onReminderAdded={handleReminderAdded}
-        editingReminder={editingReminder}
-        userId={userId}
+        editingReminder={null}
+        userId={user?.id || null}
       />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: SPACING.xl,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xl,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  remindersList: {
-    margin: SPACING.lg,
-    gap: SPACING.md,
-  },
-  reminderCard: {
-    padding: SPACING.lg,
-  },
-  pendingReminderCard: {
-    padding: SPACING.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.error,
-    backgroundColor: COLORS.surface,
-  },
-  completedReminderCard: {
-    padding: SPACING.lg,
-    opacity: 0.7,
-    backgroundColor: COLORS.surface,
-  },
-  reminderTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
-  },
-  reminderTitleWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  urgentBadge: {
-    backgroundColor: COLORS.error,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: 4,
-  },
-  urgentText: {
-    color: COLORS.background,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  completedTitle: {
-    textDecorationLine: 'line-through',
-    color: COLORS.textMuted,
-  },
-  completedDescription: {
-    color: COLORS.textMuted,
-  },
-  reminderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.md,
-  },
-  reminderInfo: {
-    flex: 1,
-    marginRight: SPACING.md,
-  },
-  reminderTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  reminderDescription: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    lineHeight: 20,
-  },
-  reminderActions: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  actionButton: {
-    padding: SPACING.sm,
-  },
-  reminderDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
-  },
-  reminderDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  reminderDetailText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  addButtonContainer: {
-    margin: SPACING.lg,
-  },
-  addReminderButton: {
-    width: '100%',
-  },
-});
+function createStyles() {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: COLORS.background,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.xxl,
+    },
+    pageHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: SPACING.md,
+      paddingTop: SPACING.sm,
+      marginBottom: SPACING.lg,
+    },
+    pageHeaderText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    pageTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 28,
+      letterSpacing: -0.4,
+      color: COLORS.text,
+      marginBottom: 6,
+    },
+    pageSub: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.textSecondary,
+      lineHeight: 20,
+    },
+    addFab: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: COLORS.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: SPACING.xs,
+    },
+    loaderWrap: {
+      paddingVertical: SPACING.xl,
+      alignItems: 'center',
+    },
+    emptyState: {
+      alignItems: 'center',
+      paddingVertical: SPACING.xxl,
+    },
+    emptyTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 18,
+      color: COLORS.text,
+      marginTop: SPACING.md,
+      marginBottom: SPACING.sm,
+    },
+    emptyText: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.textMuted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    sections: {
+      gap: 0,
+    },
+    section: {
+      marginBottom: SPACING.sm,
+    },
+    sectionDivider: {
+      marginTop: SPACING.md,
+      paddingTop: SPACING.lg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: COLORS.border,
+    },
+    sectionHeading: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 13,
+      letterSpacing: 2,
+      color: COLORS.accent,
+      marginBottom: SPACING.md,
+    },
+    sectionList: {
+      gap: SPACING.md,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      padding: SPACING.md,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+    },
+    rowMuted: {
+      opacity: 0.55,
+    },
+    iconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: RADIUS.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconWrapUrgent: {
+      backgroundColor: COLORS.accent,
+    },
+    iconWrapNormal: {
+      backgroundColor: hexToRgba(COLORS.text, 0.07),
+    },
+    rowBody: {
+      flex: 1,
+      minWidth: 0,
+    },
+    rowTitle: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 14,
+      color: COLORS.text,
+      marginBottom: 4,
+    },
+    rowTitleMuted: {
+      textDecorationLine: 'line-through',
+      color: COLORS.textMuted,
+    },
+    rowSub: {
+      fontFamily: FONTS.regular,
+      fontSize: 12,
+      color: COLORS.textSecondary,
+      lineHeight: 16,
+    },
+    deleteBtn: {
+      padding: SPACING.xs,
+    },
+  });
+}
 
 export default RemindersScreen;

@@ -64,10 +64,6 @@ web-build/
 # Flipper
 Flipper-*
 
-# Environment variables
-.env.local
-.env
-
 # TypeScript
 *.tsbuildinfo
 
@@ -84,13 +80,10 @@ node_modules/**/android/.settings/
 *.log
 *.log.*
 
-# Android specific
+# Android specific — keep Gradle wrapper (gradlew*, gradle/wrapper/) tracked for reproducible builds
 android/app/build/
 android/build/
 android/.gradle/
-android/gradle/
-android/gradlew
-android/gradlew.bat
 android/local.properties
 android/app/release/
 android/app/debug/
@@ -204,12 +197,6 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
-
-# dotenv environment variables file
-.env
-.env.test
-.env.production
-.env.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -332,3 +319,24 @@ $RECYCLE.BIN/
 # Temporary files
 *.tmp
 *.temp.env.local
+
+# --- Deployment / secrets (Expo RN): do not commit ---
+# Env files (tracked template only). Adjust if you intentionally commit staged .env.*
+.env*
+!.env.example
+credentials.json
+
+# Signing & distribution payloads
+*.jks
+*.p12
+*.p8
+*.pem
+*.cer
+*.aab
+
+# Xcode local env overrides (often contain machine-specific paths/secrets)
+**/.xcode.env.local
+
+# Bundler-installed CocoaPods (optional; avoids vendor noise)
+vendor/bundle/
+.bundle/

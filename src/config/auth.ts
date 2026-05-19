@@ -17,10 +17,10 @@ import { Platform } from 'react-native';
 export const AUTH_CONFIG = {
   google: {
     webClientId: GOOGLE_WEB_CLIENT_ID,
-    // Для iOS нужен короткий Client ID без .apps.googleusercontent.com
-    // Временно используем Web Client ID как iOS Client ID
-    ...(Platform.OS === 'ios' && {
-      iosClientId: GOOGLE_WEB_CLIENT_ID.split('.')[0],
+    // Для iOS используем GOOGLE_IOS_CLIENT_ID из .env
+    // iosClientId должен быть БЕЗ .apps.googleusercontent.com (только ID часть)
+    ...(Platform.OS === 'ios' && GOOGLE_IOS_CLIENT_ID && {
+      iosClientId: GOOGLE_IOS_CLIENT_ID.replace('.apps.googleusercontent.com', ''),
     }),
     offlineAccess: true,
   },

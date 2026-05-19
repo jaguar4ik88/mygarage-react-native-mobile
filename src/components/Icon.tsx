@@ -31,6 +31,7 @@ const Icon: React.FC<IconProps> = ({
       
       // Action icons
       'add': { component: MaterialIcons, iconName: 'add' },
+      'plus': { component: MaterialIcons, iconName: 'add' }, // Alias for 'add'
       'edit': { component: MaterialIcons, iconName: 'edit' },
       'delete': { component: MaterialIcons, iconName: 'delete' },
       'close': { component: MaterialIcons, iconName: 'close' },
@@ -41,6 +42,7 @@ const Icon: React.FC<IconProps> = ({
       'notification': { component: MaterialIcons, iconName: 'notifications' },
       'error': { component: MaterialIcons, iconName: 'error' },
       'success': { component: MaterialIcons, iconName: 'check' },
+      'check': { component: MaterialIcons, iconName: 'check' }, // Alias for success
       'warning': { component: MaterialIcons, iconName: 'warning' },
       'info': { component: MaterialIcons, iconName: 'info' },
       
@@ -85,6 +87,7 @@ const Icon: React.FC<IconProps> = ({
       'arrow-left': { component: MaterialIcons, iconName: 'keyboard-arrow-left' },
       'arrow-right': { component: MaterialIcons, iconName: 'keyboard-arrow-right' },
       'heart': { component: MaterialIcons, iconName: 'favorite' },
+      'heart-plus': { component: MaterialIcons, iconName: 'favorite' }, // Heart icon for favorites
       'star-outline': { component: MaterialIcons, iconName: 'star-border' },
       'user-circle': { component: MaterialIcons, iconName: 'account-circle' },
       'avatar': { component: MaterialIcons, iconName: 'account-circle' },
@@ -109,6 +112,7 @@ const Icon: React.FC<IconProps> = ({
       'fuel': { component: MaterialIcons, iconName: 'local-gas-station' },
       'laptop': { component: MaterialIcons, iconName: 'laptop' },
       'rocket': { component: MaterialIcons, iconName: 'rocket-launch' },
+      'sparkles': { component: MaterialIcons, iconName: 'auto-awesome' },
       'book': { component: MaterialIcons, iconName: 'book' },
       'hospital': { component: MaterialIcons, iconName: 'local-hospital' },
       'balance': { component: MaterialIcons, iconName: 'balance' },

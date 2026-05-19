@@ -49,7 +49,7 @@ const getPlanFeatures = (planType: string): string[] => {
   const features = {
     free: [
       'vehicles_limit_1',
-      'reminders_limit_5',
+      'reminders_unlimited', // unlimited - users can delete reminders
       'basic_reminders',
       'basic_manual',
       'basic_advice',

@@ -1,125 +1,141 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useFeatureAccess } from '../hooks/useFeatureAccess';
-import { useLanguage } from '../contexts/LanguageContext';
-import { COLORS, SPACING } from '../constants';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from './Icon';
+import { COLORS, FONTS, SPACING } from '../constants';
+import SubscriptionService from '../services/SubscriptionService';
+import { useAuth } from '../contexts/AuthContext';
+import Paywall from './Paywall';
 
 interface FeatureGateProps {
   feature: string;
   children: React.ReactNode;
   fallback?: React.ReactNode;
-  showUpgradePrompt?: boolean;
-  user: any;
+  showPaywall?: boolean;
+  onUpgrade?: () => void;
 }
 
 const FeatureGate: React.FC<FeatureGateProps> = ({
   feature,
   children,
   fallback,
-  showUpgradePrompt = true,
-  user,
+  showPaywall = true,
+  onUpgrade
 }) => {
-  const { hasFeature, planType } = useFeatureAccess(user);
-  const { t } = useLanguage();
+  const { user } = useAuth();
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
 
-  if (hasFeature(feature)) {
+  useEffect(() => {
+    checkAccess();
+  }, [feature]);
+
+  const checkAccess = async () => {
+    try {
+      const access = await SubscriptionService.checkAccess(feature);
+      setHasAccess(access);
+    } catch (error) {
+      console.error('Error checking feature access:', error);
+      setHasAccess(false);
+    }
+  };
+
+  const handleUpgrade = () => {
+    if (onUpgrade) {
+      onUpgrade();
+    } else {
+      setShowPaywallModal(true);
+    }
+  };
+
+  // Показываем загрузку пока проверяем доступ
+  if (hasAccess === null) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Проверка доступа...</Text>
+      </View>
+    );
+  }
+
+  // Если есть доступ, показываем контент
+  if (hasAccess) {
     return <>{children}</>;
   }
 
+  // Если нет доступа, показываем fallback или Paywall
   if (fallback) {
     return <>{fallback}</>;
   }
 
-  if (!showUpgradePrompt) {
-    return null;
+  if (showPaywall) {
+    return (
+      <>
+        <View style={styles.noAccessContainer}>
+          <Icon name="lock" size={24} color={COLORS.textMuted} />
+          <Text style={styles.noAccessText}>
+            Эта функция доступна только в PRO версии
+          </Text>
+          <TouchableOpacity 
+            style={styles.upgradeButton}
+            onPress={handleUpgrade}
+          >
+            <Text style={styles.upgradeButtonText}>
+              Обновить до PRO
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Paywall
+          visible={showPaywallModal}
+          onClose={() => setShowPaywallModal(false)}
+          onUpgrade={() => {
+            setShowPaywallModal(false);
+            handleUpgrade();
+          }}
+          feature={feature}
+          currentPlan={user?.plan_type || 'free'}
+        />
+      </>
+    );
   }
 
-  const getRequiredPlan = (feature: string): string => {
-    const featurePlans: Record<string, string> = {
-      'photo_documents': 'Pro',
-      'fuel_tracking': 'Pro',
-      'mileage_tracking': 'Pro',
-      'advanced_analytics': 'Pro',
-      'smart_reminders': 'Pro',
-      'widgets': 'Pro',
-      'export_data': 'Pro',
-      'gps_integration': 'Premium',
-      'obd_diagnosis': 'Premium',
-      'ai_assistant': 'Premium',
-      'checklists': 'Premium',
-      'gamification': 'Premium',
-      'cloud_backup': 'Premium',
-      'api_integrations': 'Premium',
-      'client_management': 'Business',
-      'business_reports': 'Business',
-      '1c_integration': 'Business',
-      'master_app': 'Business',
-      'business_analytics': 'Business',
-    };
-
-    return featurePlans[feature] || 'Pro';
-  };
-
-  const requiredPlan = getRequiredPlan(feature);
-
-  return (
-    <View style={styles.upgradePrompt}>
-      <View style={styles.upgradeContent}>
-        <Icon name="lock" size={24} color={COLORS.accent} />
-        <Text style={styles.upgradeTitle}>
-          {t('subscription.featureLocked')}
-        </Text>
-        <Text style={styles.upgradeText}>
-          {t('subscription.upgradeRequired', { plan: requiredPlan })}
-        </Text>
-        <TouchableOpacity style={styles.upgradeButton}>
-          <Text style={styles.upgradeButtonText}>
-            {t('subscription.upgradeTo', { plan: requiredPlan })}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  return null;
 };
 
 const styles = StyleSheet.create({
-  upgradePrompt: {
-    margin: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
-  upgradeContent: {
+  loadingContainer: {
     padding: SPACING.lg,
     alignItems: 'center',
   },
-  upgradeTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  upgradeText: {
+  loadingText: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+  },
+  noAccessContainer: {
+    padding: SPACING.xl,
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    margin: SPACING.md,
+  },
+  noAccessText: {
+    fontSize: 16,
+    fontFamily: FONTS.medium,
     color: COLORS.textMuted,
     textAlign: 'center',
+    marginTop: SPACING.md,
     marginBottom: SPACING.lg,
-    lineHeight: 20,
   },
   upgradeButton: {
     backgroundColor: COLORS.accent,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: 10,
+    paddingVertical: SPACING.md,
+    borderRadius: 8,
   },
   upgradeButtonText: {
-    color: COLORS.background,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FONTS.bold,
+    color: COLORS.background,
   },
 });
 

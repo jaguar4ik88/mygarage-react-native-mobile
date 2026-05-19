@@ -3,6 +3,8 @@ export interface User {
   name: string;
   email: string;
   currency?: string;
+  plan_type?: 'free' | 'pro' | 'premium';
+  subscription_expires_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +64,8 @@ export interface ServiceHistory {
   amount?: number;
   date?: string;
   station_name?: string;
+  receipt_photo?: string;
+  receipt_photo_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +115,9 @@ export type RootStackParamList = {
   History: undefined;
   Reports: undefined;
   Actions: undefined;
+  Export: undefined;
   Recommendations: undefined;
   Profile: undefined;
+  Subscription: undefined;
+  VehicleDocuments: { vehicle: Vehicle };
 };

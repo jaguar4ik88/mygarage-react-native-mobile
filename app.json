@@ -2,10 +2,10 @@
   "expo": {
     "name": "myGarage",
     "slug": "mygarage",
-    "version": "1.5.0",
+    "version": "3.0.1",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/ic_launcher/ios/AppIcon.appiconset/ItunesArtwork@2x.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
@@ -18,17 +18,26 @@
     "scheme": "mygarage",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "uno.mygarage.app",
-      "buildNumber": "1",
+      "bundleIdentifier": "uno.mygarage.com",
+      "buildNumber": "3",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "icon": "./assets/icon.png",
+      "icon": "./assets/ic_launcher/ios/AppIcon.appiconset/ItunesArtwork@2x.png",
       "usesAppleSignIn": true,
+      "inAppPurchases": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to find nearby service stations.",
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate you and protect your personal data.",
+        "NSPhotoLibraryUsageDescription": "We need access to your photo library to attach photos of documents and receipts.",
+        "NSCameraUsageDescription": "We need access to your camera to take photos of documents and receipts.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "mygarage",
+              "uno.mygarage.com"
+            ]
+          }
+        ],
         "UIBackgroundModes": [
-          "background-processing",
-          "background-fetch",
           "remote-notification"
         ],
         "NSAppTransportSecurity": {
@@ -54,19 +63,29 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
-        "backgroundColor": "#1b1b1f"
+        "backgroundColor": "#141e1e"
       },
       "icon": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher.png",
       "package": "uno.mygarage.app",
-      "versionCode": 1,
+      "versionCode": 3,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
       ],
       "config": {
         "googleMobileAdsAppId": ""
-      }
+      },
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#1b1b1f",
+      "barStyle": "light-content",
+      "visible": "leanback"
     },
     "web": {
       "favicon": "./assets/favicon.png"

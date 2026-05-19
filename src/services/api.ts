@@ -6,10 +6,19 @@ import { AuthResponse, User, Vehicle, Reminder, ServiceStation, ServiceHistory, 
 import OfflineService from './offlineService';
 import CrashlyticsService from './crashlyticsService';
 
+/**
+ * Подробные логи каждого HTTP-запроса (guest check, тип эндпоинта, URL, заголовки).
+ * По умолчанию выкл.: включите локально или задайте EXPO_PUBLIC_DEBUG_API=1 в .env
+ */
+const API_VERBOSE_LOGS =
+  __DEV__ && String(process.env.EXPO_PUBLIC_DEBUG_API || '').trim() === '1';
+
 class ApiService {
   private baseURL: string;
   private token: string | null = null;
   private static readonly DICT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+  /** Один сетевой GET на URL, пока первый запрос в полёте (убирает дубли при параллельных вызовах). */
+  private inflightGetByUrl = new Map<string, Promise<unknown>>();
   
   // Список эндпоинтов, которые требуют авторизацию
   private readonly PROTECTED_ENDPOINTS = [
@@ -63,7 +72,9 @@ class ApiService {
   private async loadToken(): Promise<void> {
     try {
       this.token = await AsyncStorage.getItem('auth_token');
-      console.log('🔑 Loaded token from storage:', this.token ? 'exists' : 'null');
+      if (API_VERBOSE_LOGS) {
+        console.log('🔑 Loaded token from storage:', this.token ? 'exists' : 'null');
+      }
     } catch (error) {
       console.error('Error loading token:', error);
     }
@@ -72,8 +83,10 @@ class ApiService {
   private async isGuestMode(): Promise<boolean> {
     try {
       const guestMode = await AsyncStorage.getItem('guest_mode');
-      const authToken = await AsyncStorage.getItem('auth_token');
-      console.log(`🔐 Auth check: guest_mode="${guestMode}", has_token=${!!authToken}`);
+      if (API_VERBOSE_LOGS) {
+        const authToken = await AsyncStorage.getItem('auth_token');
+        console.log(`🔐 Auth check: guest_mode="${guestMode}", has_token=${!!authToken}`);
+      }
       return guestMode === 'true';
     } catch (error) {
       console.error('Error checking guest mode:', error);
@@ -87,11 +100,13 @@ class ApiService {
     
     const isProtected = this.PROTECTED_ENDPOINTS.some(protected_ep => {
       // Проверяем что endpoint начинается с защищенного пути или точно совпадает
-      return cleanEndpoint === protected_ep || 
+      return cleanEndpoint === protected_ep ||
              cleanEndpoint.startsWith(protected_ep + '/');
     });
-    
-    console.log(`🛡️ Endpoint check: "${cleanEndpoint}" -> ${isProtected ? 'PROTECTED' : 'PUBLIC'}`);
+
+    if (API_VERBOSE_LOGS) {
+      console.log(`🛡️ Endpoint check: "${cleanEndpoint}" -> ${isProtected ? 'PROTECTED' : 'PUBLIC'}`);
+    }
     return isProtected;
   }
 
@@ -107,8 +122,10 @@ class ApiService {
 
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
-      console.log('🔐 Sending auth token for request');
-    } else {
+      if (API_VERBOSE_LOGS) {
+        console.log('🔐 Sending auth token for request');
+      }
+    } else if (API_VERBOSE_LOGS) {
       console.log('🔓 No auth token for request');
     }
 
@@ -122,11 +139,15 @@ class ApiService {
     // Проверка на гостевой режим для защищенных эндпоинтов
     const isGuest = await this.isGuestMode();
     const isProtected = this.isProtectedEndpoint(endpoint);
-    
-    console.log(`🔍 API Check: endpoint="${endpoint}", isGuest=${isGuest}, isProtected=${isProtected}`);
-    
+
+    if (API_VERBOSE_LOGS) {
+      console.log(`🔍 API Check: endpoint="${endpoint}", isGuest=${isGuest}, isProtected=${isProtected}`);
+    }
+
     if (isGuest && isProtected) {
-      console.log(`👤 Guest mode: Skipping API request to protected endpoint: ${endpoint}`);
+      if (API_VERBOSE_LOGS) {
+        console.log(`👤 Guest mode: Skipping API request to protected endpoint: ${endpoint}`);
+      }
       // Возвращаем пустой успешный ответ для гостей
       return {
         data: (Array.isArray([]) ? [] : {}) as T,
@@ -136,131 +157,190 @@ class ApiService {
     }
 
     const url = `${this.baseURL}${endpoint}`;
-    const headers = await this.getHeaders();
-    // Ensure auth endpoints never send stale Authorization header
-    if (endpoint.includes('/auth/login') || endpoint.includes('/auth/register')) {
-      if ('Authorization' in headers) {
-        delete (headers as any)['Authorization'];
-      }
-    }
-    const REQUEST_TIMEOUT_MS = 15000; // Increased timeout to 15 seconds
+    const httpMethod = String(options.method || 'GET').toUpperCase();
 
-    // Log all API requests with detailed info
-    console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
-    try {
-      const headersToLog: Record<string, any> = { ...headers } as any;
-      if (headersToLog['X-API-Key']) {
-        const val = String(headersToLog['X-API-Key']);
-        headersToLog['X-API-Key'] = `${val.slice(0, 4)}…(${val.length})`;
-      }
-      console.log('📋 Request headers (masked):', headersToLog);
-    } catch {
-      console.log('📋 Request headers: <unavailable>');
-    }
-    console.log('🔧 Base URL:', this.baseURL);
-    console.log('📱 Platform:', Platform.OS);
-
-    try {
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
-
-      // Extra diagnostics for auth endpoints (mask sensitive fields)
-      try {
-        if (endpoint.includes('/auth/login')) {
-          const b = (options?.body ? JSON.parse(String(options.body)) : {}) as any;
-          const maskedBody = {
-            email: b?.email ?? '<undefined>',
-            password: b.password
-          };
-          console.log('🧾 Login payload (masked):', maskedBody);
+    const run = async (): Promise<ApiResponse<T>> => {
+      const headers = await this.getHeaders();
+      // Ensure auth endpoints never send stale Authorization header
+      if (endpoint.includes('/auth/login') || endpoint.includes('/auth/register')) {
+        if ('Authorization' in headers) {
+          delete (headers as any)['Authorization'];
         }
-      } catch {}
-
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...headers,
-          ...options.headers,
-        },
-        signal: abortController.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // Handle authentication errors
-      if (response.status === 401) {
-        console.log('🔐 Authentication failed, clearing token');
-        await this.removeToken();
-        throw new Error('Authentication failed. Please login again.');
       }
+      const REQUEST_TIMEOUT_MS = 15000; // Increased timeout to 15 seconds
 
-      // Проверяем Content-Type перед парсингом JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response received:', {
-          status: response.status,
-          contentType,
-          url,
-          response: text.substring(0, 200) + (text.length > 200 ? '...' : '')
-        });
-        throw new Error(`Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}...`);
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
+      // Log requests only in verbose diagnostics mode
+      if (API_VERBOSE_LOGS) {
+        console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
         try {
-          const text = await response.clone().text();
-          console.error('❗ Response body (first 300 chars):', text.slice(0, 300));
-        } catch {}
-        console.error('Request failed with status:', response.status);
-        console.error('Error data:', data);
-        
-        // Handle validation errors (422) with detailed error messages
-        if (response.status === 422 && data.errors) {
-          const errorMessages = [];
-          for (const [field, messages] of Object.entries(data.errors)) {
-            if (Array.isArray(messages)) {
-              errorMessages.push(`${field}: ${messages.join(', ')}`);
+          const headersToLog: Record<string, any> = { ...headers } as any;
+          // Mask sensitive headers
+          if (headersToLog['X-API-Key']) {
+            const val = String(headersToLog['X-API-Key']);
+            headersToLog['X-API-Key'] = `${val.slice(0, 4)}…(${val.length})`;
+          }
+          if (headersToLog['Authorization']) {
+            const val = String(headersToLog['Authorization']);
+            // Mask Bearer token: show only first 10 chars and last 4
+            if (val.startsWith('Bearer ')) {
+              const token = val.substring(7);
+              if (token.length > 14) {
+                headersToLog['Authorization'] = `Bearer ${token.slice(0, 3)}…${token.slice(-4)}(${token.length})`;
+              } else {
+                headersToLog['Authorization'] = 'Bearer ***';
+              }
             } else {
-              errorMessages.push(`${field}: ${messages}`);
+              headersToLog['Authorization'] = '***';
             }
           }
-          throw new Error(errorMessages.join('\n'));
+          console.log('📋 Request headers (masked):', headersToLog);
+        } catch {
+          console.log('📋 Request headers: <unavailable>');
         }
-        
-        throw new Error(data.message || `Request failed with status ${response.status}`);
+        console.log('🔧 Base URL:', this.baseURL);
+        console.log('📱 Platform:', Platform.OS);
       }
 
-      return data;
-    } catch (error) {
-      console.error('❌ API request failed:', error);
-      console.error('📱 Platform:', Platform.OS);
-      console.error('🔗 URL:', url);
-      console.error('📋 Headers:', headers);
-      console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
-      
-      // Log to Crashlytics
       try {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await CrashlyticsService.logApiError(
-          endpoint,
-          0, // status code unknown for network errors
-          errorMessage
-        );
-      } catch (crashError) {
-        console.error('Failed to log API error to Crashlytics:', crashError);
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
+
+        // Extra diagnostics for auth endpoints (mask sensitive fields)
+        try {
+          if (API_VERBOSE_LOGS && endpoint.includes('/auth/login')) {
+            const b = (options?.body ? JSON.parse(String(options.body)) : {}) as any;
+            const maskedBody = {
+              email: b?.email ?? '<undefined>',
+              password: b.password ? '***' : undefined,
+            };
+            console.log('🧾 Login payload (masked):', maskedBody);
+          }
+        } catch {}
+
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            ...headers,
+            ...options.headers,
+          },
+          signal: abortController.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Handle authentication errors
+        if (response.status === 401) {
+          console.warn('[API] 401 — clearing session token');
+          await this.removeToken();
+          throw new Error('Authentication failed. Please login again.');
+        }
+
+        // Проверяем Content-Type перед парсингом JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Non-JSON response received:', {
+            status: response.status,
+            contentType,
+            url,
+            response: text.substring(0, 200) + (text.length > 200 ? '...' : '')
+          });
+          throw new Error(`Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}...`);
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          // Check if this is a subscription limit error (not a real error, just business logic)
+          const isSubscriptionLimit = response.status === 403 && (data.upgrade_required || data.limit_reached);
+          
+          if (!isSubscriptionLimit) {
+            // Only log non-subscription errors
+            try {
+              const text = await response.clone().text();
+              console.error('❗ Response body (first 300 chars):', text.slice(0, 300));
+            } catch {}
+            console.error('Request failed with status:', response.status);
+            console.error('Error data:', data);
+          } else {
+            // Subscription limits are expected, just log minimally
+            console.log('🔒 Subscription limit reached:', data.message);
+          }
+          
+          // Handle validation errors (422) with detailed error messages
+          if (response.status === 422 && data.errors) {
+            const errorMessages = [];
+            for (const [field, messages] of Object.entries(data.errors)) {
+              if (Array.isArray(messages)) {
+                errorMessages.push(`${field}: ${messages.join(', ')}`);
+              } else {
+                errorMessages.push(`${field}: ${messages}`);
+              }
+            }
+            const error: any = new Error(errorMessages.join('\n'));
+            // Preserve all data properties
+            Object.assign(error, data);
+            throw error;
+          }
+          
+          // Preserve all error data properties (upgrade_required, limit_reached, etc.)
+          const error: any = new Error(data.message || `Request failed with status ${response.status}`);
+          Object.assign(error, data);
+          throw error;
+        }
+
+        return data;
+      } catch (error) {
+        // Check if this is a subscription limit error
+        const isSubscriptionLimit = (error as any).upgrade_required || (error as any).limit_reached;
+        
+        if (!isSubscriptionLimit) {
+          // Only log real errors, not subscription limits
+          console.error('❌ API request failed:', error);
+          console.error('📱 Platform:', Platform.OS);
+          console.error('🔗 URL:', url);
+          console.error('📋 Headers:', headers);
+          console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
+          
+          // Log to Crashlytics (skip subscription errors)
+          try {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await CrashlyticsService.logApiError(
+              endpoint,
+              0, // status code unknown for network errors
+              errorMessage
+            );
+          } catch (crashError) {
+            console.error('Failed to log API error to Crashlytics:', crashError);
+          }
+        }
+        
+        // Notify UI to show graceful banner (skip subscription errors)
+        if (!isSubscriptionLimit) {
+          eventBus.emit(EVENTS.API_ERROR, {
+            url,
+            method: options.method || 'GET',
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        
+        throw error;
       }
-      
-      // Notify UI to show graceful banner
-      eventBus.emit(EVENTS.API_ERROR, {
-        url,
-        method: options.method || 'GET',
-        message: error instanceof Error ? error.message : String(error),
+    };
+
+    if (httpMethod === 'GET') {
+      const existing = this.inflightGetByUrl.get(url);
+      if (existing) {
+        return existing as Promise<ApiResponse<T>>;
+      }
+      const pending = run().finally(() => {
+        this.inflightGetByUrl.delete(url);
       });
-      throw error;
+      this.inflightGetByUrl.set(url, pending);
+      return pending as Promise<ApiResponse<T>>;
     }
+
+    return run();
   }
 
   // Simple cache helpers for reference data (dictionaries)
@@ -422,6 +502,14 @@ class ApiService {
     return response.data;
   }
 
+  async deleteAccount(): Promise<void> {
+    await this.request<{ success: boolean; message: string }>('/profile', {
+      method: 'DELETE',
+    });
+    // Clear token after account deletion
+    await this.removeToken();
+  }
+
   // Vehicle methods
   async getVehicles(): Promise<Vehicle[]> {
     try {
@@ -528,8 +616,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      // Fire-and-forget background refresh
-      this.request<any[]>(`/advice-sections?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached;
     }
 
@@ -690,9 +776,58 @@ class ApiService {
     return response.data;
   }
 
-  async addServiceRecord(record: Partial<ServiceHistory>): Promise<ServiceHistory> {
+  async addServiceRecord(record: Partial<ServiceHistory>, receiptPhoto?: any): Promise<ServiceHistory> {
     // Get current user first
     const user = await this.getProfile();
+    
+    // If there's a receipt photo, use FormData
+    if (receiptPhoto) {
+      const formData = new FormData();
+      formData.append('vehicle_id', String(record.vehicle_id));
+      formData.append('expense_type_id', String(record.expense_type_id));
+      formData.append('description', record.description || '');
+      formData.append('cost', String(record.cost));
+      formData.append('service_date', record.service_date || '');
+      if (record.station_name) {
+        formData.append('station_name', record.station_name);
+      }
+
+      // Add receipt photo
+      const fileName = receiptPhoto.fileName || `receipt_${Date.now()}.jpg`;
+      console.log('Adding receipt photo to FormData:', {
+        fileName,
+        uri: receiptPhoto.uri,
+        type: receiptPhoto.type || 'image/jpeg'
+      });
+      formData.append('receipt_photo', {
+        uri: receiptPhoto.uri,
+        name: fileName,
+        type: receiptPhoto.type || 'image/jpeg',
+      } as any);
+
+      const token = await AsyncStorage.getItem('auth_token');
+      console.log('Sending FormData to:', `${this.baseURL}/history/${user.id}/add`);
+      const response = await fetch(`${this.baseURL}/history/${user.id}/add`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.error('Server error:', response.status, response.statusText);
+        const error = await response.json();
+        console.error('Error details:', error);
+        throw error;
+      }
+
+      const result = await response.json();
+      console.log('Server response:', result);
+      return result.data;
+    }
+
+    // Otherwise use JSON
     const response = await this.request<ServiceHistory>(`/history/${user.id}/add`, {
       method: 'POST',
       body: JSON.stringify(record),
@@ -700,9 +835,51 @@ class ApiService {
     return response.data;
   }
 
-  async updateServiceRecord(id: number, record: Partial<ServiceHistory>): Promise<ServiceHistory> {
-    // Get current user first
+  async updateServiceRecord(id: number, record: Partial<ServiceHistory>, receiptPhoto?: any): Promise<ServiceHistory> {
+    // Get current user from context instead of making new request
     const user = await this.getProfile();
+    
+    // If there's a receipt photo, use FormData
+    if (receiptPhoto) {
+      const formData = new FormData();
+      formData.append('_method', 'PUT'); // Laravel method spoofing
+      formData.append('expense_type_id', String(record.expense_type_id));
+      formData.append('description', record.description || '');
+      formData.append('cost', String(record.cost));
+      formData.append('service_date', record.service_date || '');
+      if (record.station_name) {
+        formData.append('station_name', record.station_name);
+      }
+
+      // Add receipt photo
+      const fileName = receiptPhoto.fileName || `receipt_${Date.now()}.jpg`;
+      formData.append('receipt_photo', {
+        uri: receiptPhoto.uri,
+        name: fileName,
+        type: receiptPhoto.type || 'image/jpeg',
+      } as any);
+
+      const token = await AsyncStorage.getItem('auth_token');
+      const response = await fetch(`${this.baseURL}/history/${user.id}/update/${id}`, {
+        method: 'POST', // Используем POST как в addServiceRecord
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.error('Update service record error:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to update service record: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    }
+
+    // Otherwise use JSON
     const response = await this.request<ServiceHistory>(`/history/${user.id}/update/${id}`, {
       method: 'PUT',
       body: JSON.stringify(record),
@@ -725,7 +902,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      this.request<any[]>(`/reminder-types?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached;
     }
 
@@ -746,7 +922,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      this.request<any[]>(`/manual-sections?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached;
     }
 
@@ -767,7 +942,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      this.request<any[]>(`/expense-types?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached as any;
     }
 
@@ -801,6 +975,126 @@ class ApiService {
     
     const response = await this.request<any[]>(url);
     return response.data;
+  }
+
+  // Subscription methods
+  async getSubscriptions(): Promise<any[]> {
+    const response = await this.request<any[]>('/subscriptions');
+    return response.data;
+  }
+
+  async getCurrentSubscription(): Promise<any> {
+    const response = await this.request<any>('/user/subscription');
+    return response.data;
+  }
+
+  async getSubscriptionFeatures(): Promise<any> {
+    const response = await this.request<any>('/user/subscription/features');
+    return response.data;
+  }
+
+  async verifySubscription(data: {
+    platform: string;
+    transaction_id: string;
+    original_transaction_id?: string;
+    receipt_data?: string;
+    subscription_type: string;
+  }): Promise<any> {
+    // Пустые optional поля обязательны в JSON ключами: Laravel + JSON.stringify режет undefined
+    const payload = {
+      platform: data.platform,
+      transaction_id: data.transaction_id,
+      subscription_type: data.subscription_type,
+      original_transaction_id: data.original_transaction_id ?? '',
+      receipt_data: data.receipt_data ?? '',
+    };
+    const response = await this.request<any>('/user/subscription/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return response;
+  }
+
+  async cancelSubscription(): Promise<any> {
+    const response = await this.request<any>('/user/subscription/cancel', {
+      method: 'POST',
+    });
+    return response;
+  }
+
+  async restoreSubscription(data: {
+    platform: string;
+    original_transaction_id: string;
+  }): Promise<any> {
+    const response = await this.request<any>('/user/subscription/restore', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response;
+  }
+
+  // Vehicle Documents methods (PRO feature)
+  async getVehicleDocuments(vehicleId: number): Promise<any[]> {
+    const response = await this.request<any[]>(`/vehicles/${vehicleId}/documents`);
+    return response.data;
+  }
+
+  async uploadVehicleDocument(vehicleId: number, formData: FormData): Promise<any> {
+    const token = await AsyncStorage.getItem('auth_token');
+    
+    const response = await fetch(`${this.baseURL}/vehicles/${vehicleId}/documents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // НЕ устанавливаем Content-Type - браузер сам установит для multipart/form-data
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  async updateVehicleDocument(documentId: number, formData: FormData): Promise<any> {
+    const token = await AsyncStorage.getItem('auth_token');
+    
+    const response = await fetch(`${this.baseURL}/vehicles/documents/${documentId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  async deleteVehicleDocument(documentId: number): Promise<any> {
+    const response = await this.request<any>(`/vehicles/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+    return response;
+  }
+
+  async downloadVehicleDocument(documentId: number): Promise<any> {
+    const token = await AsyncStorage.getItem('auth_token');
+    
+    const response = await fetch(`${this.baseURL}/vehicles/documents/${documentId}/download`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return response;
   }
 }
 
