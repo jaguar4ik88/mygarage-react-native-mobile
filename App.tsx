@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, TouchableOpacity } from 'react-native';
 import * as Font from 'expo-font';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import AppNavigator from './src/navigation/AppNavigator';
 import NotificationService from './src/services/notificationService';
 import './src/i18n';
@@ -26,21 +32,27 @@ const LanguageWrapper: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { isDark } = useTheme();
+  const { isDark, colorScheme } = useTheme();
 
   useEffect(() => {
-    // Ensure Android navigation bar matches app theme
-    NavigationBar.setBackgroundColorAsync('#1b1b1f').catch(() => {});
-    NavigationBar.setButtonStyleAsync('light').catch(() => {});
-    NavigationBar.setBehaviorAsync('inset-swipe').catch(() => {});
+    const syncNavBar = async () => {
+      try {
+        await NavigationBar.setBackgroundColorAsync(COLORS.background);
+        await NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark');
+        await NavigationBar.setBehaviorAsync('inset-swipe');
+      } catch {
+        /* noop */
+      }
+    };
+    syncNavBar();
+  }, [isDark, colorScheme]);
 
-    // Initialize Firebase services
+  useEffect(() => {
     const initializeFirebase = async () => {
       try {
-        // Wait for Firebase to auto-initialize from native side
         let attempts = 0;
         const maxAttempts = 10;
-        
+
         while (attempts < maxAttempts) {
           const apps = getApps();
           if (apps.length > 0) {
@@ -51,24 +63,22 @@ const AppContent: React.FC = () => {
           await new Promise(resolve => setTimeout(resolve, 300));
           attempts++;
         }
-        
+
         const apps = getApps();
         if (apps.length === 0) {
           console.error('❌ Firebase failed to initialize after', maxAttempts, 'attempts');
           return;
         }
-        
-        // Initialize Analytics
+
         try {
           const { getAnalytics, setAnalyticsCollectionEnabled } = require('@react-native-firebase/analytics');
-          const analytics = getAnalytics(); // modular API - no app parameter needed
+          const analytics = getAnalytics();
           await setAnalyticsCollectionEnabled(analytics, true);
           console.log('✅ Firebase Analytics initialized');
         } catch (e) {
           console.warn('⚠️ Failed to initialize Analytics:', e);
         }
-        
-        // Initialize Crashlytics
+
         try {
           await CrashlyticsService.initialize();
           console.log('✅ Firebase Crashlytics initialized');
@@ -79,13 +89,13 @@ const AppContent: React.FC = () => {
         console.error('❌ Firebase initialization error:', error);
       }
     };
-    
+
     initializeFirebase();
   }, []);
 
   return (
     <ErrorBoundary>
-      <SafeAreaProvider key={isDark ? 'dark' : 'light'}>
+      <SafeAreaProvider key={colorScheme}>
         <StatusBar style={isDark ? "light" : "dark"} />
         <AppNavigator />
       </SafeAreaProvider>
@@ -94,10 +104,15 @@ const AppContent: React.FC = () => {
 };
 
 export default function App() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [interLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+  const [iconsLoaded, setIconsLoaded] = useState(false);
 
   useEffect(() => {
-    // Load fonts
     const loadFonts = async () => {
       try {
         await Font.loadAsync({
@@ -108,10 +123,10 @@ export default function App() {
           'Ionicons': require('react-native-vector-icons/Fonts/Ionicons.ttf'),
           'Feather': require('react-native-vector-icons/Fonts/Feather.ttf'),
         });
-        setFontsLoaded(true);
       } catch (error) {
         console.error('Error loading fonts:', error);
-        setFontsLoaded(true); // Continue anyway
+      } finally {
+        setIconsLoaded(true);
       }
     };
 
@@ -166,7 +181,7 @@ export default function App() {
     return cleanup;
   }, []);
 
-  if (!fontsLoaded) {
+  if (!interLoaded || !iconsLoaded) {
     return <LoadingSpinner text="Загрузка шрифтов..." />;
   }
 

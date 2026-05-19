@@ -1,35 +1,32 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   ActivityIndicator,
   Modal,
+  Alert,
+  Platform,
 } from 'react-native';
 import ModalRN from 'react-native-modal';
 import Icon from './Icon';
-import Button from './Button';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS, hexToRgba } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import ApiService from '../services/api';
 import SubscriptionService from '../services/SubscriptionService';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 
-interface Subscription {
-  id: number;
+type PlanId = 'free' | 'pro' | 'premium';
+
+interface ApiSubRow {
   name: string;
-  display_name: string;
-  price: number; // цена в центах
-  duration_days: number;
-  features: string[];
-  max_vehicles: number;
-  max_reminders: number | null;
   is_active: boolean;
 }
 
@@ -37,173 +34,581 @@ interface PaywallProps {
   visible: boolean;
   onClose: () => void;
   onUpgrade: () => void;
-  feature: string;
-  subscriptionType?: 'pro' | 'premium'; // Тип подписки для отображения
-  currentPlan?: 'free' | 'pro' | 'premium'; // Текущий план пользователя
+  /** Контекст блокировки функции; пусто — только каталог планов (например из профиля). */
+  feature?: string;
+  subscriptionType?: 'pro' | 'premium';
+  currentPlan?: string;
 }
 
-const Paywall: React.FC<PaywallProps> = ({ 
-  visible, 
-  onClose, 
-  onUpgrade, 
-  feature,
+const PLAN_ORDER: PlanId[] = ['free', 'pro', 'premium'];
+
+function splitPipeList(raw: string): string[] {
+  return raw
+    .split('||')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function createPaywallStyles() {
+  return StyleSheet.create({
+    modal: {
+      justifyContent: 'flex-end',
+      margin: 0,
+    },
+    sheet: {
+      backgroundColor: COLORS.background,
+      borderTopLeftRadius: RADIUS.sheet,
+      borderTopRightRadius: RADIUS.sheet,
+      maxHeight: '92%',
+      paddingTop: SPACING.md,
+      overflow: 'hidden',
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.lg,
+      marginBottom: SPACING.md,
+    },
+    headerTextCol: {
+      flex: 1,
+      paddingRight: SPACING.sm,
+    },
+    eyebrow: {
+      fontSize: 11,
+      fontFamily: FONTS.semiBold,
+      color: COLORS.textSecondary,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginBottom: 4,
+    },
+    sheetTitle: {
+      fontSize: 22,
+      fontFamily: FONTS.bold,
+      color: COLORS.text,
+      letterSpacing: -0.3,
+      marginBottom: 4,
+    },
+    sheetSubtitle: {
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      color: COLORS.textMuted,
+    },
+    contextHint: {
+      marginTop: SPACING.sm,
+      fontSize: 12,
+      fontFamily: FONTS.regular,
+      color: COLORS.textSecondary,
+      lineHeight: 17,
+    },
+    closeRound: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.surface,
+    },
+    scrollInner: {
+      paddingHorizontal: SPACING.lg,
+    },
+    paywallScroll: {
+      overflow: 'hidden',
+    },
+    planStack: {
+      gap: SPACING.sm,
+    },
+    planCard: {
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      padding: SPACING.lg,
+      backgroundColor: COLORS.surface,
+    },
+    planCardIdle: {
+      borderColor: COLORS.border,
+    },
+    planCardActive: {
+      borderColor: COLORS.accent,
+      backgroundColor: hexToRgba(COLORS.accent, 0.06),
+    },
+    planCardTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: SPACING.md,
+    },
+    planCardTitleBlock: {
+      flex: 1,
+      minWidth: 0,
+    },
+    planNameRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      marginBottom: 6,
+    },
+    planName: {
+      fontSize: 20,
+      fontFamily: FONTS.bold,
+      color: COLORS.text,
+    },
+    popularBadge: {
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderRadius: RADIUS.pill,
+      backgroundColor: COLORS.accent,
+    },
+    popularBadgeText: {
+      fontSize: 9,
+      fontFamily: FONTS.bold,
+      color: COLORS.background,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    currentMiniBadge: {
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderRadius: RADIUS.pill,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: hexToRgba(COLORS.text, 0.06),
+    },
+    currentMiniBadgeText: {
+      fontSize: 9,
+      fontFamily: FONTS.bold,
+      color: COLORS.textSecondary,
+      letterSpacing: 0.6,
+    },
+    priceRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      flexWrap: 'wrap',
+      minHeight: 36,
+    },
+    priceLarge: {
+      fontSize: 28,
+      fontFamily: FONTS.bold,
+      color: COLORS.text,
+    },
+    priceSuffix: {
+      fontSize: 12,
+      fontFamily: FONTS.regular,
+      color: COLORS.textMuted,
+    },
+    radioOuter: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: SPACING.sm,
+    },
+    radioOuterIdle: {
+      borderColor: COLORS.border,
+    },
+    radioOuterActive: {
+      borderColor: COLORS.accent,
+      backgroundColor: COLORS.accent,
+    },
+    featureList: {
+      gap: SPACING.sm,
+    },
+    featureRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: SPACING.sm,
+    },
+    featureIncludedText: {
+      flex: 1,
+      fontSize: 12,
+      fontFamily: FONTS.regular,
+      color: COLORS.text,
+      lineHeight: 17,
+    },
+    featureLockedText: {
+      flex: 1,
+      fontSize: 12,
+      fontFamily: FONTS.regular,
+      color: hexToRgba(COLORS.textMuted, 0.55),
+      textDecorationLine: 'line-through',
+      lineHeight: 17,
+    },
+    premiumHint: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      marginTop: SPACING.md,
+      padding: SPACING.sm,
+      borderRadius: RADIUS.md,
+      backgroundColor: hexToRgba(COLORS.warning, 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba(COLORS.warning, 0.35),
+    },
+    premiumHintText: {
+      flex: 1,
+      fontSize: 11,
+      fontFamily: FONTS.medium,
+      color: COLORS.warning,
+      lineHeight: 15,
+    },
+    cta: {
+      marginTop: SPACING.lg,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: SPACING.md + 2,
+      borderRadius: RADIUS.pill,
+      backgroundColor: COLORS.accent,
+      gap: SPACING.sm,
+    },
+    ctaDisabled: {
+      opacity: 0.45,
+    },
+    ctaIcon: {
+      marginRight: 2,
+    },
+    ctaText: {
+      fontSize: 13,
+      fontFamily: FONTS.bold,
+      color: COLORS.background,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    restoreWrap: {
+      alignItems: 'center',
+      marginTop: SPACING.md,
+      paddingVertical: SPACING.xs,
+    },
+    restoreText: {
+      fontSize: 12,
+      fontFamily: FONTS.medium,
+      color: COLORS.textMuted,
+    },
+    restoreHint: {
+      fontSize: 11,
+      fontFamily: FONTS.regular,
+      color: hexToRgba(COLORS.textMuted, 0.85),
+      textAlign: 'center',
+      marginTop: 2,
+      paddingHorizontal: SPACING.md,
+    },
+    noThanksWrap: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+    },
+    noThanksText: {
+      fontSize: 13,
+      fontFamily: FONTS.medium,
+      color: COLORS.textSecondary,
+    },
+    legalText: {
+      marginTop: SPACING.md,
+      fontSize: 11,
+      fontFamily: FONTS.regular,
+      color: COLORS.textMuted,
+      textAlign: 'center',
+      lineHeight: 16,
+    },
+    legalLink: {
+      fontFamily: FONTS.semiBold,
+      color: COLORS.accent,
+    },
+    autoRenewTiny: {
+      marginTop: SPACING.sm,
+      fontSize: 10,
+      fontFamily: FONTS.regular,
+      color: hexToRgba(COLORS.textMuted, 0.85),
+      textAlign: 'center',
+      lineHeight: 14,
+    },
+  });
+}
+
+const Paywall: React.FC<PaywallProps> = ({
+  visible,
+  onClose,
+  onUpgrade,
+  feature = '',
   subscriptionType,
-  currentPlan = 'free'
+  currentPlan = 'free',
 }) => {
   const { t } = useLanguage();
+  const { refreshUser } = useAuth();
+  const { appearanceKey } = useTheme();
   const insets = useSafeAreaInsets();
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const styles = useMemo(() => createPaywallStyles(), [appearanceKey]);
+  const currentNorm = useMemo(
+    () => String(currentPlan || 'free').toLowerCase(),
+    [currentPlan]
+  );
+
+  const [selected, setSelected] = useState<PlanId>('pro');
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [revenueCatPrice, setRevenueCatPrice] = useState<{ price: string; currency: string } | null>(null);
+  const [prices, setPrices] = useState<Partial<Record<'pro' | 'premium', string>>>({});
+  const [planActive, setPlanActive] = useState<Record<PlanId, boolean>>({
+    free: true,
+    pro: true,
+    premium: true,
+  });
 
-  // Определяем тип подписки для отображения
-  // Если пользователь уже имеет Pro и пытается добавить 4-е авто, показываем Premium
-  const displayType = subscriptionType || (currentPlan === 'pro' ? 'premium' : 'pro');
-  const isPremium = displayType === 'premium';
+  const featureAliasMap: { [key: string]: string } = useMemo(
+    () => ({
+      photo_documents: 'photoDocuments',
+      receipt_photos: 'receiptPhotos',
+      pdf_export: 'pdfExport',
+      unlimited_vehicles: 'vehiclesManagement',
+      unlimited_reminders: 'unlimitedReminders',
+      expense_reminders: 'expenseReminders',
+    }),
+    []
+  );
 
-  // Загружаем данные подписки при открытии модального окна
-  useEffect(() => {
-    if (visible) {
-      loadSubscriptionData();
-    }
-  }, [visible, displayType]);
+  const getFeatureInfo = useCallback(
+    (feat: string) => {
+      if (!feat.trim()) {
+        return { title: '', description: '' };
+      }
+      const featureAlias = featureAliasMap[feat] || feat;
+      const title = t(`subscription.features.${featureAlias}` as any);
+      const description = t(`subscription.features.${featureAlias}Desc` as any);
+      return { title, description };
+    },
+    [featureAliasMap, t]
+  );
 
-  const loadSubscriptionData = async () => {
+  const loadPaywallData = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // ПРИОРИТЕТ 1: Получаем цену из RevenueCat (из App Store/Google Play)
-      try {
-        const packageToPurchase = await SubscriptionService.getProductForSubscription(displayType);
-        if (packageToPurchase) {
-          const product = (packageToPurchase as any).product || (packageToPurchase as any).storeProduct;
-          if (product) {
-            // Извлекаем цену из продукта RevenueCat
-            const priceString = product.pricePerMonthString || product.priceString || '';
-            const price = product.price || 0;
-            const currencyCode = product.currencyCode || 'USD';
-            
-            console.log('💰 Price from RevenueCat:', priceString, currencyCode, price);
-            
-            // Сохраняем цену из RevenueCat
-            setRevenueCatPrice({
-              price: priceString || `${price} ${currencyCode}`,
-              currency: currencyCode
-            });
-            
-            // Конвертируем цену в центы для совместимости с существующим кодом
-            const priceInCents = Math.round(price * 100);
-            
-            // Загружаем остальные данные из API (features, limits и т.д.)
-            const subscriptions = await ApiService.getSubscriptions();
-            const foundSubscription = subscriptions.find((sub: Subscription) => 
-              sub.name === displayType
-            );
-            
-            if (foundSubscription) {
-              // Используем цену из RevenueCat, остальное из API
-              setSubscription({
-                ...foundSubscription,
-                price: priceInCents, // Перезаписываем цену из RevenueCat
-              });
-            } else {
-              // Fallback: создаем объект с данными из RevenueCat
-              setSubscription({
-                id: isPremium ? 999 : 1,
-                name: displayType,
-                display_name: isPremium ? 'Premium' : 'Pro',
-                price: priceInCents,
-                duration_days: 30,
-                features: [],
-                max_vehicles: 3,
-                max_reminders: null,
-                is_active: true,
-              });
-            }
-            
-            setLoading(false);
-            return; // Успешно получили данные из RevenueCat
-          }
+      const subscriptions = (await ApiService.getSubscriptions()) as ApiSubRow[];
+      const nextActive: Record<PlanId, boolean> = {
+        free: true,
+        pro: true,
+        premium: true,
+      };
+      subscriptions.forEach((s) => {
+        if (s.name === 'pro' || s.name === 'premium') {
+          nextActive[s.name] = s.is_active;
         }
-      } catch (revenueCatError) {
-        console.warn('⚠️ Could not get price from RevenueCat, falling back to API:', revenueCatError);
-      }
-      
-      // ПРИОРИТЕТ 2: Fallback на API, если RevenueCat недоступен
-      const subscriptions = await ApiService.getSubscriptions();
-      const foundSubscription = subscriptions.find((sub: Subscription) => 
-        sub.name === displayType
-      );
-      
-      if (foundSubscription) {
-        setSubscription(foundSubscription);
-      } else {
-        // Fallback: если подписка не найдена, создаем объект с дефолтными значениями
-        setSubscription({
-          id: isPremium ? 999 : 1,
-          name: displayType,
-          display_name: isPremium ? 'Premium' : 'Pro',
-          price: isPremium ? 699 : 399, // дефолтные цены в центах
-          duration_days: 30,
-          features: [],
-          max_vehicles: 3,
-          max_reminders: null,
-          is_active: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading subscription data:', error);
-      // Fallback на дефолтные значения при ошибке
-      setSubscription({
-        id: isPremium ? 999 : 1,
-        name: displayType,
-        display_name: isPremium ? 'Premium' : 'Pro',
-        price: isPremium ? 699 : 399,
-        duration_days: 30,
-        features: [],
-        max_vehicles: 3,
-        max_reminders: null,
-        is_active: true,
       });
+      setPlanActive(nextActive);
+
+      const monthShort = t('paywall.perMonthShort');
+      const priceParts: Partial<Record<'pro' | 'premium', string>> = {};
+      for (const id of ['pro', 'premium'] as const) {
+        try {
+          const pkg = await SubscriptionService.getProductForSubscription(id);
+          const product = (pkg as any)?.product || (pkg as any)?.storeProduct;
+          if (product) {
+            const ps =
+              product.pricePerMonthString ||
+              product.priceString ||
+              `${product.price ?? ''} ${product.currencyCode ?? ''}`.trim();
+            if (ps) {
+              priceParts[id] = `${ps}${monthShort}`;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      setPrices(priceParts);
+    } catch (e) {
+      console.error('Paywall load error:', e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  const formatPrice = (priceInCents: number): string => {
-    if (priceInCents === 0) return t('subscription.free') || 'Бесплатно';
-    
-    // Если есть цена из RevenueCat, используем её (уже отформатированная)
-    if (revenueCatPrice && revenueCatPrice.price) {
-      return revenueCatPrice.price;
+  useEffect(() => {
+    if (!visible) return;
+
+    let initial: PlanId = 'pro';
+    if (subscriptionType === 'pro' || subscriptionType === 'premium') {
+      initial = subscriptionType;
+    } else if (currentNorm === 'free') {
+      initial = 'pro';
+    } else if (currentNorm === 'pro') {
+      initial = 'premium';
+    } else if (currentNorm === 'premium') {
+      initial = 'premium';
     }
-    
-    // Fallback: форматируем цену из центов
-    return `$${(priceInCents / 100).toFixed(2)}`;
+
+    setSelected(initial);
+    loadPaywallData();
+  }, [visible, subscriptionType, currentNorm, loadPaywallData]);
+
+  const handleRestore = async () => {
+    try {
+      setRestoring(true);
+      if (!SubscriptionService.isReady()) {
+        Alert.alert(
+          t('subscription.restorePurchases'),
+          t('subscription.restoreMessage') || 'Попробуйте позже.'
+        );
+        return;
+      }
+      const customerInfo = await SubscriptionService.restorePurchases();
+      const hasActive =
+        customerInfo.entitlements.active &&
+        Object.keys(customerInfo.entitlements.active).length > 0;
+      if (hasActive) {
+        await refreshUser();
+        Alert.alert(
+          t('subscription.success') || 'Успех!',
+          t('subscription.restoreSuccess') || 'Покупки восстановлены.',
+          [{ text: t('common.ok') || 'OK', onPress: () => onClose() }]
+        );
+      } else {
+        Alert.alert(
+          t('subscription.noPurchases') || '',
+          t('subscription.noPurchasesMessage') || ''
+        );
+      }
+    } catch (error: any) {
+      Alert.alert(
+        t('common.error') || 'Ошибка',
+        error?.message || t('subscription.restoreError') || ''
+      );
+    } finally {
+      setRestoring(false);
+    }
   };
 
-  // Маппинг snake_case (из базы) в camelCase (для переводов)
-  const featureAliasMap: { [key: string]: string } = {
-    'photo_documents': 'photoDocuments',
-    'receipt_photos': 'receiptPhotos',
-    'pdf_export': 'pdfExport',
-    'unlimited_vehicles': 'vehiclesManagement', // До 3 авто = управление автомобилями
-    'unlimited_reminders': 'unlimitedReminders',
-    'expense_reminders': 'expenseReminders',
+  const planLabel = (id: PlanId): string => {
+    if (id === 'free') return t('subscription.free');
+    if (id === 'pro') return t('subscription.pro');
+    return t('subscription.premium');
   };
 
-  const getFeatureInfo = (feature: string) => {
-    const featureAlias = featureAliasMap[feature] || feature;
-    
-    return {
-      title: t(`subscription.features.${featureAlias}`),
-      description: t(`subscription.features.${featureAlias}Desc`),
-    };
+  const includedFor = (id: PlanId): string[] => {
+    const key =
+      id === 'free'
+        ? 'paywall.freeIncludes'
+        : id === 'pro'
+          ? 'paywall.proIncludes'
+          : 'paywall.premiumIncludes';
+    return splitPipeList(t(key));
   };
 
-  const featureInfo = getFeatureInfo(feature);
+  const lockedFor = (id: PlanId): string[] => {
+    const key =
+      id === 'free'
+        ? 'paywall.freeLocked'
+        : id === 'pro'
+          ? 'paywall.proLocked'
+          : 'paywall.premiumLocked';
+    return splitPipeList(t(key));
+  };
+
+  const primaryDisabled =
+    restoring ||
+    (selected === 'premium' && !planActive.premium) ||
+    (selected === 'pro' && !planActive.pro) ||
+    (selected !== 'free' && currentNorm === selected);
+
+  const primaryLabel =
+    selected === 'free'
+      ? t('paywall.continueWithFree')
+      : currentNorm === selected
+        ? t('subscription.currentPlan')
+        : t('paywall.checkoutWithPlan', { plan: planLabel(selected) });
+
+  const handlePrimary = () => {
+    if (selected === 'free') {
+      onClose();
+      return;
+    }
+    if (currentNorm === selected) return;
+    if (selected === 'premium' && !planActive.premium) return;
+    if (selected === 'pro' && !planActive.pro) return;
+    onUpgrade();
+  };
+
+  const { title: featTitle, description: featDesc } = getFeatureInfo(feature);
+  const contextLine =
+    featDesc && !String(featDesc).startsWith('subscription.features.')
+      ? featDesc
+      : featTitle && !String(featTitle).startsWith('subscription.features.')
+        ? featTitle
+        : null;
+
+  const renderPlanCard = (id: PlanId) => {
+    const active = selected === id;
+    const isCurrent = currentNorm === id;
+    const showPopular = id === 'pro';
+    const premiumBlocked = id === 'premium' && !planActive.premium;
+
+    return (
+      <TouchableOpacity
+        key={id}
+        activeOpacity={0.88}
+        onPress={() => setSelected(id)}
+        style={[styles.planCard, active ? styles.planCardActive : styles.planCardIdle]}
+      >
+        <View style={styles.planCardTop}>
+          <View style={styles.planCardTitleBlock}>
+            <View style={styles.planNameRow}>
+              <Text style={styles.planName}>{planLabel(id)}</Text>
+              {showPopular ? (
+                <View style={styles.popularBadge}>
+                  <Text style={styles.popularBadgeText}>{t('paywall.popularBadge')}</Text>
+                </View>
+              ) : null}
+              {isCurrent ? (
+                <View style={styles.currentMiniBadge}>
+                  <Text style={styles.currentMiniBadgeText}>{t('subscription.current')}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.priceRow}>
+              {loading && id !== 'free' ? (
+                <ActivityIndicator size="small" color={COLORS.accent} />
+              ) : (
+                <>
+                  <Text style={styles.priceLarge}>{id === 'free' ? '0' : prices[id] ?? '—'}</Text>
+                  {id === 'free' ? (
+                    <Text style={styles.priceSuffix}> {t('paywall.forever')}</Text>
+                  ) : null}
+                </>
+              )}
+            </View>
+          </View>
+          <View style={[styles.radioOuter, active ? styles.radioOuterActive : styles.radioOuterIdle]}>
+            {active ? <Icon name="check" size={12} color={COLORS.background} /> : null}
+          </View>
+        </View>
+
+        <View style={styles.featureList}>
+          {includedFor(id).map((line, idx) => (
+            <View key={`${id}-i-${idx}`} style={styles.featureRow}>
+              <Icon name="check" size={14} color={COLORS.accent} />
+              <Text style={styles.featureIncludedText}>{line}</Text>
+            </View>
+          ))}
+          {lockedFor(id).map((line, idx) => (
+            <View key={`${id}-l-${idx}`} style={styles.featureRow}>
+              <Icon name="close" size={14} color={COLORS.textMuted} />
+              <Text style={styles.featureLockedText}>{line}</Text>
+            </View>
+          ))}
+        </View>
+
+        {premiumBlocked ? (
+          <View style={styles.premiumHint}>
+            <Icon name="info" size={14} color={COLORS.warning} />
+            <Text style={styles.premiumHintText}>{t('paywall.premiumUnavailable')}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <>
@@ -215,199 +620,78 @@ const Paywall: React.FC<PaywallProps> = ({
         propagateSwipe
         style={styles.modal}
       >
-      <View style={styles.container}>
-        <View style={styles.modalHandle} />
-        
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Icon name="close" size={24} color={COLORS.textMuted} />
-        </TouchableOpacity>
-
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: SPACING.xl + insets.bottom }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-            <View style={styles.logoContainer}>
-              <Image 
-                source={require('../../assets/adaptive-icon-new.png')} 
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-
-            <Text style={styles.title}>{featureInfo.title}</Text>
-            <Text style={styles.description}>{featureInfo.description}</Text>
-            <View style={styles.proFeaturesContainer}>
-              <Text style={styles.proTitle}>{t('paywall.whatYouGet')}</Text>
-              
-              {/* PRO функции - показываем только если пользователь НЕ на PRO */}
-              {currentPlan !== 'pro' && !isPremium && (
-                <>
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.success} />
-                    <Text style={styles.featureText}>{t('paywall.benefitVehicles')}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.success} />
-                    <Text style={styles.featureText}>{t('paywall.benefitReminders')}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.success} />
-                    <Text style={styles.featureText}>{t('paywall.benefitDocuments')}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.success} />
-                    <Text style={styles.featureText}>{t('paywall.benefitPdf')}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.success} />
-                    <Text style={styles.featureText}>{t('paywall.benefitNotifications')}</Text>
-                  </View>
-                </>
-              )}
-
-              {/* Premium функции - показываем для Premium Paywall */}
-              {isPremium && (
-                <>
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.accent} />
-                    <Text style={styles.featureText}>{t('paywall.benefitAiAssistant') || 'AI помощник'}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.accent} />
-                    <Text style={styles.featureText}>{t('paywall.benefitTrips') || 'Отслеживание поездок'}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.accent} />
-                    <Text style={styles.featureText}>{t('paywall.benefitFuelTracking') || 'Учет топлива'}</Text>
-                  </View>
-
-                  <View style={styles.featureItem}>
-                    <Icon name="check" size={20} color={COLORS.accent} />
-                    <Text style={styles.featureText}>{t('paywall.benefitCloudStorage') || 'Облачное хранилище'}</Text>
-                  </View>
-
-                  {/* Сообщение "в разработке" для Premium */}
-                  {subscription && !subscription.is_active && (
-                    <View style={styles.comingSoonContainer}>
-                      <Icon name="info" size={16} color={COLORS.warning} />
-                      <Text style={styles.comingSoonText}>
-                        {t('paywall.comingSoon') || t('subscription.comingSoonMessage') || 'Скоро будет доступно'}
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-
-            {/* Subscription Information - Required by Apple */}
-            {subscription && (
-              <View style={styles.subscriptionInfoContainer}>
-                <Text style={styles.subscriptionInfoTitle}>
-                  {t('paywall.subscriptionInfo') || 'Информация о подписке'}
+        <View style={styles.sheet}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextCol}>
+              <Text style={styles.eyebrow}>{t('paywall.sheetEyebrow')}</Text>
+              <Text style={styles.sheetTitle}>{t('paywall.sheetTitle')}</Text>
+              <Text style={styles.sheetSubtitle}>{t('paywall.sheetSubtitle')}</Text>
+              {contextLine ? (
+                <Text style={styles.contextHint} numberOfLines={3}>
+                  {contextLine}
                 </Text>
-                <View style={styles.subscriptionInfoRow}>
-                  <Text style={styles.subscriptionInfoLabel}>
-                    {t('paywall.subscriptionName') || 'Название:'}
-                  </Text>
-                  <Text style={styles.subscriptionInfoValue}>
-                    {subscription.display_name} {t('paywall.monthlySubscription') || 'месячная подписка'}
-                  </Text>
-                </View>
-                <View style={styles.subscriptionInfoRow}>
-                  <Text style={styles.subscriptionInfoLabel}>
-                    {t('paywall.duration') || 'Продолжительность:'}
-                  </Text>
-                  <Text style={styles.subscriptionInfoValue}>
-                    {subscription.duration_days} {subscription.duration_days === 30 
-                      ? (t('paywall.days') || 'дней') 
-                      : subscription.duration_days === 365 
-                        ? (t('paywall.year') || 'год') 
-                        : (t('paywall.days') || 'дней')}
-                  </Text>
-                </View>
-                <View style={styles.subscriptionInfoRow}>
-                  <Text style={styles.subscriptionInfoLabel}>
-                    {t('paywall.price') || 'Цена:'}
-                  </Text>
-                  <Text style={styles.subscriptionInfoValue}>
-                    {formatPrice(subscription.price)} {t('paywall.perMonth') || '/месяц'}
-                  </Text>
-                </View>
-              </View>
-            )}
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeRound}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Icon name="close" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.priceContainer}>
-              {loading ? (
+          <ScrollView
+            style={styles.paywallScroll}
+            contentContainerStyle={[styles.scrollInner, { paddingBottom: SPACING.xl + insets.bottom }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+            directionalLockEnabled
+            bounces
+            {...(Platform.OS === 'android' ? { overScrollMode: 'never' as const } : {})}
+          >
+            <View style={styles.planStack}>{PLAN_ORDER.map(renderPlanCard)}</View>
+
+            <TouchableOpacity
+              style={[styles.cta, primaryDisabled && styles.ctaDisabled]}
+              onPress={handlePrimary}
+              disabled={primaryDisabled}
+              activeOpacity={0.9}
+            >
+              <Icon name="sparkles" size={18} color={COLORS.background} style={styles.ctaIcon} />
+              <Text style={styles.ctaText}>{primaryLabel}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.restoreWrap} onPress={handleRestore} disabled={restoring}>
+              {restoring ? (
                 <ActivityIndicator size="small" color={COLORS.accent} />
-              ) : subscription ? (
-                <>
-                  <Text style={styles.priceText}>{formatPrice(subscription.price)}</Text>
-                  <Text style={styles.perMonth}>{t('paywall.perMonth')}</Text>
-                </>
               ) : (
-                <>
-                  <Text style={styles.priceText}>{isPremium ? '$9.99' : '$4.99'}</Text>
-                  <Text style={styles.perMonth}>{t('paywall.perMonth')}</Text>
-                </>
+                <Text style={styles.restoreText}>{t('subscription.restorePurchases')}</Text>
               )}
-            </View>
+            </TouchableOpacity>
+            <Text style={styles.restoreHint}>{t('paywall.restoreHint')}</Text>
 
-            {/* Purchase Required Notice */}
-            <View style={styles.purchaseNoticeContainer}>
-              <Icon name="info" size={16} color={COLORS.accent} />
-              <Text style={styles.purchaseNoticeText}>
-                {t('paywall.purchaseRequired') || 'Эта функция требует покупки подписки'}
-              </Text>
-            </View>
-
-            <Button
-              title={isPremium ? (t('paywall.upgradeToPremium') || 'Обновить до Premium') : t('paywall.upgradeToPro')}
-              onPress={onUpgrade}
-              style={styles.upgradeButton}
-              disabled={isPremium && subscription && !subscription.is_active}
-            />
-
-            <TouchableOpacity onPress={onClose} style={styles.noThanksButton}>
+            <TouchableOpacity onPress={onClose} style={styles.noThanksWrap}>
               <Text style={styles.noThanksText}>{t('paywall.noThanks')}</Text>
             </TouchableOpacity>
 
-            {/* EULA and Privacy Policy Links - Required by Apple */}
-            <View style={styles.linksContainer}>
-              <TouchableOpacity 
-                style={styles.linkButton}
-                onPress={() => setShowPrivacyModal(true)}
-              >
-                <Icon name="shield" size={14} color={COLORS.accent} />
-                <Text style={styles.linkText}>{t('profile.privacyPolicy')}</Text>
-              </TouchableOpacity>
-              
-              <View style={styles.linkDivider} />
-              
-              <TouchableOpacity 
-                style={styles.linkButton}
-                onPress={() => setShowTermsModal(true)}
-              >
-                <Icon name="file-text" size={14} color={COLORS.accent} />
-                <Text style={styles.linkText}>{t('profile.termsOfService')}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Auto-renewal notice */}
-            <Text style={styles.autoRenewalNotice}>
-              {t('paywall.autoRenewalNotice') || 'Подписка будет автоматически продлена, если не отменить ее за 24 часа до окончания периода.'}
+            <Text style={styles.legalText}>
+              {t('paywall.legalLead')}{' '}
+              <Text style={styles.legalLink} onPress={() => setShowTermsModal(true)}>
+                {t('paywall.termsShort')}
+              </Text>{' '}
+              {t('paywall.legalAnd')}{' '}
+              <Text style={styles.legalLink} onPress={() => setShowPrivacyModal(true)}>
+                {t('paywall.privacyShort')}
+              </Text>
             </Text>
-        </ScrollView>
-      </View>
+
+            <Text style={styles.autoRenewTiny}>{t('paywall.autoRenewalNotice')}</Text>
+          </ScrollView>
+        </View>
       </ModalRN>
 
-      {/* Privacy Policy Modal */}
       <Modal
         visible={showPrivacyModal}
         animationType="slide"
@@ -417,7 +701,6 @@ const Paywall: React.FC<PaywallProps> = ({
         <PrivacyPolicyScreen onBack={() => setShowPrivacyModal(false)} />
       </Modal>
 
-      {/* Terms of Service Modal */}
       <Modal
         visible={showTermsModal}
         animationType="slide"
@@ -430,231 +713,4 @@ const Paywall: React.FC<PaywallProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  modal: {
-    justifyContent: 'flex-end',
-    margin: 0,
-  },
-  container: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-    position: 'relative',
-  },
-  modalHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: COLORS.border,
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: SPACING.sm,
-    right: SPACING.md,
-    zIndex: 10,
-    padding: SPACING.xs,
-  },
-  content: {
-    padding: SPACING.xl,
-    alignItems: 'center',
-  },
-  logoContainer: {
-    width: 120,
-    height: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 120,
-    height: 120,
-  },
-  title: {
-    fontSize: 24,
-    fontFamily: FONTS.bold,
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-  },
-  description: {
-    fontSize: 16,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
-    lineHeight: 18,
-  },
-  proFeaturesContainer: {
-    width: '100%',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  proTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  featureText: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.text,
-    marginLeft: SPACING.sm,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: SPACING.lg,
-  },
-  priceText: {
-    fontSize: 36,
-    fontFamily: FONTS.bold,
-    color: COLORS.accent,
-  },
-  perMonth: {
-    fontSize: 16,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginLeft: SPACING.xs,
-  },
-  upgradeButton: {
-    width: '100%',
-    marginBottom: SPACING.md,
-  },
-  noThanksButton: {
-    padding: SPACING.md,
-  },
-  noThanksText: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  featureDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.md,
-  },
-  premiumTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.accent,
-    marginBottom: SPACING.md,
-    marginTop: SPACING.xs,
-  },
-  subscriptionInfoContainer: {
-    width: '100%',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  subscriptionInfoTitle: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  subscriptionInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
-  },
-  subscriptionInfoLabel: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
-  subscriptionInfoValue: {
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.text,
-  },
-  purchaseNoticeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    padding: SPACING.sm,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
-  purchaseNoticeText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.accent,
-    marginLeft: SPACING.xs,
-  },
-  linksContainer: {
-    width: '100%',
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    padding: SPACING.sm,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.xs,
-  },
-  linkDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.xs,
-  },
-  linkText: {
-    flex: 1,
-    marginLeft: SPACING.xs,
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.accent,
-  },
-  autoRenewalNotice: {
-    fontSize: 10,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: SPACING.xs,
-    lineHeight: 14,
-  },
-  comingSoonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    padding: SPACING.sm,
-    marginTop: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.warning,
-  },
-  comingSoonText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.warning,
-    marginLeft: SPACING.xs,
-  },
-});
-
 export default Paywall;
-

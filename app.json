@@ -2,10 +2,10 @@
   "expo": {
     "name": "myGarage",
     "slug": "mygarage",
-    "version": "2.0.0",
+    "version": "3.0.1",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/ic_launcher/ios/AppIcon.appiconset/ItunesArtwork@2x.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
@@ -19,10 +19,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uno.mygarage.com",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "icon": "./assets/icon.png",
+      "icon": "./assets/ic_launcher/ios/AppIcon.appiconset/ItunesArtwork@2x.png",
       "usesAppleSignIn": true,
+      "inAppPurchases": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to find nearby service stations.",
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate you and protect your personal data.",
@@ -33,11 +34,6 @@
             "CFBundleURLSchemes": [
               "mygarage",
               "uno.mygarage.com"
-            ]
-          },
-          {
-            "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.1041379542857-5i00r9ism77rikh77l5hn9lhednciv37"
             ]
           }
         ],
@@ -67,11 +63,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
-        "backgroundColor": "#1b1b1f"
+        "backgroundColor": "#141e1e"
       },
       "icon": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher.png",
       "package": "uno.mygarage.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",

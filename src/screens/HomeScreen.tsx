@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,72 +10,144 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Card from '../components/Card';
-import Button from '../components/Button';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { Fuel, Wrench, Bell } from 'lucide-react-native';
 import Icon from '../components/Icon';
 import AnimatedView from '../components/AnimatedView';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS, hexToRgba } from '../constants';
 import ApiService from '../services/api';
-import { Vehicle, Reminder } from '../types';
+import { Vehicle, Reminder, ServiceHistory } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { subscriptionUtils, SUBSCRIPTION_CONFIG } from '../config/subscriptions';
 
 interface HomeScreenProps {
   onNavigateToVehicleDetail: (vehicle: Vehicle) => void;
   onNavigateToProfile: () => void;
   onAddCar: () => void;
+  onNavigateToSubscription?: () => void;
   onVehicleDeleted?: () => void;
   refreshTrigger?: number;
 }
 
+function monthRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+}
+
+function expenseCost(r: ServiceHistory): number {
+  const raw = (r as any).cost ?? (r as any).amount ?? 0;
+  const n = typeof raw === 'string' ? Number(String(raw).replace(/[^0-9.\-]/g, '')) : Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function recordInMonth(r: ServiceHistory, start: Date, end: Date): boolean {
+  const d = new Date((r as any).service_date || r.created_at || r.updated_at || Date.now());
+  return d >= start && d <= end;
+}
+
+function sumFuelRepairForMonth(
+  records: ServiceHistory[],
+  fuelId: number | undefined,
+  repairId: number | undefined
+): { fuel: number; repair: number } {
+  const { start, end } = monthRange();
+  let fuel = 0;
+  let repair = 0;
+  for (const r of records) {
+    if (!recordInMonth(r, start, end)) continue;
+    const c = expenseCost(r);
+    const etId = r.expense_type_id;
+    if (fuelId != null && etId === fuelId) {
+      fuel += c;
+      continue;
+    }
+    if (repairId != null && etId === repairId) {
+      repair += c;
+      continue;
+    }
+    const slug = typeof (r as any).type === 'string' ? (r as any).type : '';
+    if (slug === 'fuel') fuel += c;
+    else if (slug === 'repair') repair += c;
+  }
+  return { fuel, repair };
+}
+
 const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToVehicleDetail,
-  onNavigateToProfile,
+  onNavigateToProfile: _onNavigateToProfile,
   onAddCar,
-  onVehicleDeleted,
+  onNavigateToSubscription,
+  onVehicleDeleted: _onVehicleDeleted,
   refreshTrigger,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isGuest, user } = useAuth();
+  const { appearanceKey } = useTheme();
+
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [monthFuel, setMonthFuel] = useState(0);
+  const [monthRepair, setMonthRepair] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  useEffect(() => {
-    if (user?.id) {
-      loadData();
-    } else if (isGuest) {
-      // Для гостевого режима показываем пустой экран без загрузки
-      setLoading(false);
-    }
-  }, [user?.id, isGuest]);
 
-  // Refresh data when refreshTrigger changes
-  useEffect(() => {
-    if (refreshTrigger && refreshTrigger > 0) {
-      loadData();
-    }
-  }, [refreshTrigger]);
+  const locale =
+    language === 'uk' ? 'uk-UA' : language === 'ru' ? 'ru-RU' : 'en-US';
+  const currency = user?.currency || 'UAH';
 
-  const loadData = async () => {
+  const formatMoney = useCallback(
+    (amount: number) =>
+      new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount || 0),
+    [locale, currency]
+  );
+
+  const loadData = useCallback(async () => {
+    if (!user?.id) return;
     try {
-      const vehiclesData = await ApiService.getVehicles();
-
-      console.log('HomeScreen: Vehicles data length:', vehiclesData?.length);
-      
+      const [vehiclesData, remindersData, historyData, types] = await Promise.all([
+        ApiService.getVehicles(),
+        ApiService.getReminders(user.id),
+        ApiService.getExpensesHistory(user.id),
+        ApiService.getExpenseTypes(language),
+      ]);
       setVehicles(vehiclesData || []);
+      setReminders(Array.isArray(remindersData) ? remindersData : []);
+      const hist = Array.isArray(historyData) ? historyData : [];
+      const fuelId = types.find((x: { slug?: string }) => x.slug === 'fuel')?.id as number | undefined;
+      const repairId = types.find((x: { slug?: string }) => x.slug === 'repair')?.id as number | undefined;
+      const sums = sumFuelRepairForMonth(hist, fuelId, repairId);
+      setMonthFuel(sums.fuel);
+      setMonthRepair(sums.repair);
     } catch (error) {
-      console.error('Error loading data:', error);
-      // Для гостей ApiService уже вернул пустые данные, ошибки не будет
+      console.error('HomeScreen load error:', error);
       if (!isGuest) {
         Alert.alert(t('common.error'), t('common.failedToLoadData'));
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, isGuest, language, t]);
 
+  useEffect(() => {
+    if (user?.id) {
+      loadData();
+    } else if (isGuest) {
+      setLoading(false);
+      setVehicles([]);
+      setReminders([]);
+      setMonthFuel(0);
+      setMonthRepair(0);
+    }
+  }, [user?.id, isGuest, loadData]);
+
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      loadData();
+    }
+  }, [refreshTrigger, loadData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -83,292 +155,317 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     setRefreshing(false);
   };
 
-  const getNextReminder = (): Reminder | null => {
-    if (reminders.length === 0) return null;
-    
-    const now = new Date();
-    const upcomingReminders = reminders
-      .filter(reminder => reminder.is_active)
-      .filter(reminder => {
-        const nextDate = new Date(reminder.next_service_date);
-        return nextDate > now;
-      })
-      .sort((a, b) => new Date(a.next_service_date).getTime() - new Date(b.next_service_date).getTime());
-    
-    return upcomingReminders[0] || null;
-  };
+  const activeRemindersCount = useMemo(
+    () => reminders.filter((r) => r.is_active).length,
+    [reminders]
+  );
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
+  const planType = (user?.plan_type || 'free') as keyof typeof SUBSCRIPTION_CONFIG.LIMITS;
+  const maxVehicles = subscriptionUtils.getMaxVehicles(planType);
+  const planLabel = subscriptionUtils.getSubscriptionName(planType).toUpperCase();
 
-  const getDaysUntilReminder = (dateString: string): number => {
-    const now = new Date();
-    const reminderDate = new Date(dateString);
-    const diffTime = reminderDate.getTime() - now.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: COLORS.background,
+        },
+        scroll: { flex: 1 },
+        vehicleCard: {
+          borderRadius: RADIUS.xl,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          backgroundColor: COLORS.surface,
+          marginBottom: SPACING.md,
+          overflow: 'hidden',
+        },
+        vehicleRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          padding: SPACING.md,
+        },
+        vehicleIconWrap: {
+          width: 48,
+          height: 48,
+          borderRadius: RADIUS.md,
+          backgroundColor: hexToRgba(COLORS.accent, 0.12),
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: SPACING.md,
+        },
+        vehicleMain: { flex: 1 },
+        vehicleEyebrow: {
+          fontFamily: FONTS.medium,
+          fontSize: 10,
+          letterSpacing: 2,
+          textTransform: 'uppercase',
+          color: COLORS.textSecondary,
+          marginBottom: 4,
+        },
+        vehicleTitle: {
+          fontFamily: FONTS.bold,
+          fontSize: 18,
+          letterSpacing: -0.3,
+          color: COLORS.text,
+        },
+        vehicleSubtitle: {
+          fontFamily: FONTS.regular,
+          fontSize: 13,
+          color: COLORS.textMuted,
+          marginTop: 4,
+        },
+        statRow: {
+          flexDirection: 'row',
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
+        },
+        statCell: {
+          flex: 1,
+          paddingVertical: SPACING.sm,
+          paddingHorizontal: SPACING.sm,
+          alignItems: 'center',
+        },
+        statLabel: {
+          fontFamily: FONTS.medium,
+          fontSize: 9,
+          letterSpacing: 1.5,
+          textTransform: 'uppercase',
+          color: COLORS.textSecondary,
+          marginBottom: 4,
+        },
+        statValue: {
+          fontFamily: FONTS.bold,
+          fontSize: 15,
+          letterSpacing: -0.2,
+          color: COLORS.text,
+        },
+        addRow: {
+          marginTop: SPACING.sm,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: SPACING.lg,
+          borderRadius: RADIUS.xl,
+          borderWidth: 1,
+          borderStyle: 'dashed',
+          borderColor: COLORS.border,
+          backgroundColor: hexToRgba(COLORS.surface, 0.5),
+        },
+        addIconWrap: { marginRight: SPACING.sm },
+        addRowText: {
+          fontFamily: FONTS.semiBold,
+          fontSize: 14,
+        },
+        planRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          marginTop: SPACING.md,
+        },
+        planBadge: {
+          fontFamily: FONTS.medium,
+          fontSize: 11,
+          color: COLORS.textSecondary,
+          backgroundColor: COLORS.surface,
+          paddingHorizontal: SPACING.sm,
+          paddingVertical: 4,
+          borderRadius: RADIUS.pill,
+          overflow: 'hidden',
+          marginHorizontal: SPACING.xs,
+        },
+        planLink: {
+          fontFamily: FONTS.semiBold,
+          fontSize: 11,
+          color: COLORS.accent,
+          marginHorizontal: SPACING.xs,
+        },
+        statsHeading: {
+          fontFamily: FONTS.semiBold,
+          fontSize: 14,
+          letterSpacing: 1.2,
+          textTransform: 'uppercase',
+          color: COLORS.text,
+          marginBottom: SPACING.md,
+          marginTop: SPACING.xl,
+        },
+        statsGrid: {
+          flexDirection: 'row',
+          gap: 12,
+        },
+        quickCard: {
+          flex: 1,
+          borderRadius: RADIUS.xl,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          backgroundColor: COLORS.surface,
+          paddingVertical: 14,
+          paddingHorizontal: 14,
+        },
+        quickIconWrap: {
+          marginBottom: SPACING.sm,
+        },
+        quickLabel: {
+          fontFamily: FONTS.semiBold,
+          fontSize: 10,
+          letterSpacing: 1.2,
+          textTransform: 'uppercase',
+          color: COLORS.textMuted,
+          marginTop: 0,
+        },
+        quickValue: {
+          fontFamily: FONTS.bold,
+          fontSize: 14,
+          lineHeight: 18,
+          letterSpacing: -0.2,
+          color: COLORS.text,
+          marginTop: 4,
+        },
+        emptyText: {
+          fontFamily: FONTS.regular,
+          fontSize: 15,
+          color: COLORS.textSecondary,
+          textAlign: 'center',
+          paddingVertical: SPACING.xl,
+        },
+        loadingText: {
+          fontFamily: FONTS.regular,
+          fontSize: 14,
+          color: COLORS.textMuted,
+          textAlign: 'center',
+          paddingVertical: SPACING.lg,
+        },
+        scrollPad: {
+          paddingHorizontal: SPACING.lg,
+          paddingTop: SPACING.lg,
+          paddingBottom: SPACING.xxl,
+        },
+      }),
+    [appearanceKey]
+  );
 
-  const nextReminder = getNextReminder();
+  const showSubscriptionRow = Boolean(user?.id && !isGuest && onNavigateToSubscription);
+  const showUpgradeCta = planType !== 'premium';
 
   return (
-    <SafeAreaView style={styles.container} edges={['left','right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <ScrollView
-        style={styles.scrollView}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollPad}
         refreshControl={
-          <RefreshControl refreshing={refreshing || loading} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={refreshing || loading} onRefresh={handleRefresh} tintColor={COLORS.accent} />
         }
       >
-        {/* Header moved to native navigator for full-bleed background like Advice */}
+        {loading && user?.id ? (
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
+        ) : null}
 
-        <View style={styles.emptyVehicles}>
-          <Button
-            title={t('home.addCar')}
-            onPress={onAddCar}
-            variant="outline"
-            style={styles.addCarButton}
-          />
-        </View>
-
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>{t('navigation.vehicles')}</Text>
-          {loading ? (
-            <View style={styles.emptyVehicles}>
-              <Text style={styles.emptyVehiclesText}>
-                {t('common.loading')}
-              </Text>
-            </View>
-          ) : !vehicles || vehicles.length === 0 ? (
-            <View style={styles.emptyVehicles}>
-              <Text style={styles.emptyVehiclesText}>
-                {t('home.noVehiclesText')}
-              </Text>
-            </View>
-          ) : (
-            vehicles?.map((vehicle, index) => (
-              <AnimatedView
-                key={vehicle.id}
-                animation="slideInUp"
-                delay={index * 100}
-                duration={300}
+        {!loading && (!vehicles || vehicles.length === 0) ? (
+          <Text style={styles.emptyText}>{t('home.noVehiclesText')}</Text>
+        ) : (
+          vehicles.map((vehicle, index) => (
+            <AnimatedView key={vehicle.id} animation="slideInUp" delay={index * 80} duration={280}>
+              <TouchableOpacity
+                style={styles.vehicleCard}
+                activeOpacity={0.85}
+                onPress={() => onNavigateToVehicleDetail(vehicle)}
               >
-                <TouchableOpacity
-                  onPress={() => onNavigateToVehicleDetail(vehicle)}
-                  style={styles.vehicleItem}
-                >
-                  <View style={styles.vehicleInfo}>
-                    <Text style={styles.vehicleTitle}>
-                      {vehicle.year} {vehicle.make} {vehicle.model}
-                    </Text>
-                    <Text style={styles.vehicleSubtitle}>
-                      {vehicle.engine_type} • {vehicle.mileage.toLocaleString()} {t('common.kilometers')}
-                    </Text>
-                    {vehicle.vin && (
-                      <Text style={styles.vehicleVin}>
-                        VIN: {vehicle.vin}
-                      </Text>
-                    )}
+                <View style={styles.vehicleRow}>
+                  <View style={styles.vehicleIconWrap}>
+                    <Icon name="car" size={22} color={COLORS.accent} />
                   </View>
-                  <View style={styles.vehicleActions}>
-                    <TouchableOpacity
-                      onPress={() => onNavigateToVehicleDetail(vehicle)}
-                      style={styles.vehicleActionButton}
-                    >
-                      <Icon name="forward" size={16} color={COLORS.textMuted} />
-                    </TouchableOpacity>
+                  <View style={styles.vehicleMain}>
+                    <Text style={styles.vehicleEyebrow}>
+                      {vehicle.year} · {vehicle.make}
+                    </Text>
+                    <Text style={styles.vehicleTitle} numberOfLines={2}>
+                      {vehicle.model}
+                    </Text>
+                    <Text style={styles.vehicleSubtitle} numberOfLines={1}>
+                      {vehicle.mileage.toLocaleString(locale)} {t('common.kilometers')} · {vehicle.engine_type}
+                    </Text>
                   </View>
-                </TouchableOpacity>
-              </AnimatedView>
-            ))
-          )}
-        </Card>
+                  <Icon name="forward" size={18} color={COLORS.textMuted} />
+                </View>
+                <View style={styles.statRow}>
+                  <View style={styles.statCell}>
+                    <Text style={styles.statLabel}>{t('home.mileage')}</Text>
+                    <Text style={styles.statValue}>{(vehicle.mileage / 1000).toFixed(0)}k</Text>
+                  </View>
+                  <View style={[styles.statCell, { borderLeftWidth: 1, borderLeftColor: COLORS.border }]}>
+                    <Text style={styles.statLabel}>{t('home.engineShort')}</Text>
+                    <Text style={styles.statValue} numberOfLines={1}>
+                      {vehicle.engine_type || '—'}
+                    </Text>
+                  </View>
+                  <View style={[styles.statCell, { borderLeftWidth: 1, borderLeftColor: COLORS.border }]}>
+                    <Text style={styles.statLabel}>VIN</Text>
+                    <Text style={styles.statValue} numberOfLines={1}>
+                      {vehicle.vin ? `${vehicle.vin.slice(0, 6)}…` : '—'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </AnimatedView>
+          ))
+        )}
+
+        <TouchableOpacity style={styles.addRow} onPress={onAddCar} activeOpacity={0.75}>
+          <View style={styles.addIconWrap}>
+            <Icon name="add" size={18} color={COLORS.accent} />
+          </View>
+          <Text style={[styles.addRowText, { color: COLORS.accent }]}>{t('home.addCar')}</Text>
+        </TouchableOpacity>
+
+        {showSubscriptionRow ? (
+          <View style={styles.planRow}>
+            <Text style={styles.planBadge}>
+              {t('home.subscriptionBadge', {
+                plan: planLabel,
+                current: vehicles.length,
+                max: maxVehicles,
+              })}
+            </Text>
+            {showUpgradeCta ? (
+              <TouchableOpacity onPress={onNavigateToSubscription} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.planLink}>{t('home.expandLimit')}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
+        {user?.id && !isGuest ? (
+          <>
+            <Text style={styles.statsHeading}>{t('home.thisMonth')}</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.quickCard}>
+                <View style={styles.quickIconWrap}>
+                  <Fuel size={16} color={COLORS.accent} strokeWidth={2} />
+                </View>
+                <Text style={styles.quickLabel}>{t('home.fuelStat')}</Text>
+                <Text style={styles.quickValue}>{formatMoney(monthFuel)}</Text>
+              </View>
+              <View style={styles.quickCard}>
+                <View style={styles.quickIconWrap}>
+                  <Wrench size={16} color={COLORS.accent} strokeWidth={2} />
+                </View>
+                <Text style={styles.quickLabel}>{t('home.serviceStat')}</Text>
+                <Text style={styles.quickValue}>{formatMoney(monthRepair)}</Text>
+              </View>
+              <View style={styles.quickCard}>
+                <View style={styles.quickIconWrap}>
+                  <Bell size={16} color={COLORS.accent} strokeWidth={2} />
+                </View>
+                <Text style={styles.quickLabel}>{t('home.remindersStat')}</Text>
+                <Text style={styles.quickValue}>{String(activeRemindersCount)}</Text>
+              </View>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {},
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-  },
-  titleRed: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-  },
-  titleWhite: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  titleActive: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-  },
-  profileButton: {
-    padding: SPACING.sm,
-  },
-  profileButtonText: {
-    fontSize: 20,
-  },
-  emptyState: {
-    margin: SPACING.lg,
-    alignItems: 'center',
-  },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-    textAlign: 'center',
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
-    lineHeight: 24,
-  },
-  addCarButton: {
-    width: '100%',
-  },
-  vehicleCardContainer: {
-    margin: SPACING.lg,
-  },
-  vehicleCard: {
-    margin: 0,
-  },
-  vehicleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  vehicleInfo: {
-    flex: 1,
-  },
-  vehicleTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  vehicleSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  vehicleIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  arrowIcon: {
-    marginLeft: SPACING.xs,
-  },
-  vehicleVin: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: SPACING.xs,
-  },
-  sectionCard: {
-    margin: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
-  emptyVehicles: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xl,
-    marginLeft: SPACING.lg,
-    marginRight: SPACING.lg,
-  },
-  emptyVehiclesText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
-  },
-  vehicleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  vehicleActions: {
-    flexDirection: 'row',
-  },
-  vehicleActionButton: {
-    padding: SPACING.sm,
-    marginLeft: SPACING.sm,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  quickActionButton: {
-    flex: 1,
-    marginHorizontal: 2,
-  },
-  reminderCard: {
-    margin: SPACING.lg,
-    backgroundColor: COLORS.accent,
-  },
-  reminderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  reminderTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.background,
-  },
-  reminderLink: {
-    fontSize: 14,
-    color: COLORS.background,
-    textDecorationLine: 'underline',
-  },
-  reminderContent: {
-    // Additional styles if needed
-  },
-  reminderText: {
-    fontSize: 14,
-    color: COLORS.background,
-    marginBottom: SPACING.xs,
-  },
-  reminderDate: {
-    fontSize: 12,
-    color: COLORS.background,
-    opacity: 0.8,
-  },
-  bottomActions: {
-    padding: SPACING.lg,
-  },
-  bottomActionButton: {
-    marginBottom: SPACING.md,
-  },
-});
 
 export default HomeScreen;

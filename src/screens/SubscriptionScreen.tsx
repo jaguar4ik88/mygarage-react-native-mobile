@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,16 +16,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
-import { COLORS, FONTS, SPACING } from '../constants';
+import ScreenBackLink from '../components/ScreenBackLink';
+import { COLORS, FONTS, SPACING, hexToRgba } from '../constants';
 import ApiService from '../services/api';
 import SubscriptionService from '../services/SubscriptionService';
 import { subscriptionUtils } from '../config/subscriptions';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 import TermsOfServiceScreen from './TermsOfServiceScreen';
-import Purchases, { CustomerInfo, PurchasesOffering } from 'react-native-purchases';
-import { Platform } from 'react-native';
 
 interface Subscription {
   id: number;
@@ -46,6 +46,8 @@ interface SubscriptionScreenProps {
 
 const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigation }) => {
   const { t } = useLanguage();
+  const { appearanceKey } = useTheme();
+  const styles = useMemo(() => createSubscriptionStyles(), [appearanceKey]);
   const { user, refreshUser, isGuest } = useAuth();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
@@ -55,11 +57,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
   const [revenueCatReady, setRevenueCatReady] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [revenueCatData, setRevenueCatData] = useState<{
-    customerInfo: CustomerInfo | null;
-    offerings: PurchasesOffering[];
-  } | null>(null);
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [revenueCatPrices, setRevenueCatPrices] = useState<Record<string, { price: string; priceInCents: number }>>({});
 
   useEffect(() => {
@@ -70,7 +67,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
     // Загружаем подписки для всех пользователей, включая гостей
     if (revenueCatReady) {
       loadSubscriptions();
-      loadRevenueCatData();
     }
   }, [user?.id, isGuest, user?.plan_type, revenueCatReady]);
 
@@ -86,31 +82,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
     }
   };
 
-  const loadRevenueCatData = async () => {
-    try {
-      if (!SubscriptionService.isReady()) {
-        return;
-      }
-
-      const [customerInfo, offerings] = await Promise.all([
-        Purchases.getCustomerInfo().catch(err => {
-          console.error('Error getting customer info:', err);
-          return null;
-        }),
-        SubscriptionService.getOfferings(false).catch(err => {
-          console.error('Error getting offerings:', err);
-          return [];
-        }),
-      ]);
-
-      setRevenueCatData({
-        customerInfo,
-        offerings,
-      });
-    } catch (error) {
-      console.error('Error loading RevenueCat data:', error);
-    }
-  };
 
   const loadSubscriptions = async () => {
     try {
@@ -144,7 +115,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
             try {
               const packageToPurchase = await SubscriptionService.getProductForSubscription(subType);
               if (packageToPurchase) {
-                const product = (packageToPurchase as any).product || (packageToPurchase as any).storeProduct;
+                const product = (packageToPurchase as any).product;
                 if (product) {
                   const priceString = product.pricePerMonthString || product.priceString || '';
                   const price = product.price || 0;
@@ -175,7 +146,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
           });
           
           if (Object.keys(prices).length > 0) {
-            console.log('💰 Prices from RevenueCat:', prices);
             setRevenueCatPrices(prices);
             
             // Обновляем цены в подписках из RevenueCat
@@ -205,35 +175,9 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
   const onRefresh = async () => {
     setRefreshing(true);
     await loadSubscriptions();
-    await loadRevenueCatData();
     setRefreshing(false);
   };
 
-  const handleForceRefreshOfferings = async () => {
-    try {
-      setRefreshing(true);
-      console.log('🔄 Force refreshing RevenueCat offerings...');
-      
-      // Принудительно обновляем offerings
-      await SubscriptionService.syncPurchases();
-      await loadRevenueCatData();
-      
-      Alert.alert(
-        'Обновлено',
-        'Offerings обновлены. Проверьте данные RevenueCat ниже.',
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('Error force refreshing offerings:', error);
-      Alert.alert(
-        'Ошибка',
-        'Не удалось обновить offerings. Проверьте консоль для деталей.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   const formatPrice = (price: number, subscriptionName?: string): string => {
     if (price === 0) return t('subscription.free');
@@ -331,7 +275,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
               offerings.forEach((offering) => {
                 if (offering && offering.availablePackages) {
                   offering.availablePackages.forEach((pkg) => {
-                    availableProducts += `\n- ${pkg?.identifier || 'N/A'} (Product: ${pkg?.storeProduct?.identifier || 'N/A'})`;
+                    const product = (pkg as any)?.product;
+                    availableProducts += `\n- ${pkg?.identifier || 'N/A'} (Product: ${product?.identifier || 'N/A'})`;
                   });
                 }
               });
@@ -356,9 +301,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
         
         // Обновляем данные пользователя
         await refreshUser();
-        
-        // Обновляем данные RevenueCat
-        await loadRevenueCatData();
         
         // Закрываем модальное окно/экран после успешной покупки
         // чтобы пользователь увидел обновленную подписку
@@ -435,7 +377,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
       
       if (hasActiveSubscription) {
         await refreshUser();
-        await loadRevenueCatData();
         Alert.alert(
           t('subscription.success') || 'Успех!',
           t('subscription.restoreSuccess') || 'Покупки успешно восстановлены!',
@@ -586,11 +527,13 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Icon name="arrow-left" size={24} color={COLORS.error} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('subscription.title') || 'Подписки'}</Text>
-          <View style={{ width: 24 }} />
+          <View style={styles.headerSideLeft}>
+            <ScreenBackLink layout="toolbar" onPress={onBack} />
+          </View>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {t('subscription.title') || 'Подписки'}
+          </Text>
+          <View style={styles.headerSideRight} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.accent} />
@@ -602,11 +545,13 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Icon name="arrow-left" size={24} color={COLORS.accent} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('subscription.title') || 'Подписки'}</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerSideLeft}>
+          <ScreenBackLink layout="toolbar" onPress={onBack} />
+        </View>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {t('subscription.title') || 'Подписки'}
+        </Text>
+        <View style={styles.headerSideRight} />
       </View>
 
       <ScrollView
@@ -657,7 +602,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
                 {t('subscription.manageInfo') || 'Используйте эту кнопку для отмены или изменения подписки через системные настройки'}
               </Text>
               <TouchableOpacity 
-                style={styles.manageButton}
+                style={[styles.manageButton, { backgroundColor: hexToRgba(COLORS.info, 0.14) }]}
                 onPress={handleManageSubscription}
                 disabled={purchasing}
               >
@@ -677,210 +622,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
           </Text>
         </Card>
 
-        {/* RevenueCat Debug Info */}
-        <Card style={styles.debugBox}>
-          <View style={styles.debugHeaderRow}>
-            <TouchableOpacity 
-              style={styles.debugHeader}
-              onPress={() => setShowDebugInfo(!showDebugInfo)}
-            >
-              <Icon name="code" size={20} color={COLORS.accent} />
-              <Text style={styles.debugTitle}>
-                Данные RevenueCat {showDebugInfo ? '▼' : '▶'}
-              </Text>
-            </TouchableOpacity>
-            {showDebugInfo && (
-              <TouchableOpacity
-                style={styles.refreshButton}
-                onPress={handleForceRefreshOfferings}
-                disabled={refreshing}
-              >
-                <Icon name="refresh" size={16} color={COLORS.accent} />
-                <Text style={styles.refreshButtonText}>Обновить</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          
-          {showDebugInfo && revenueCatData && (
-            <View style={styles.debugContent}>
-              {/* Customer Info */}
-              <View style={styles.debugSection}>
-                <Text style={styles.debugSectionTitle}>Customer Info:</Text>
-                {revenueCatData.customerInfo ? (
-                  <>
-                    <Text style={styles.debugText}>
-                      First Seen: {revenueCatData.customerInfo.firstSeen || 'N/A'}
-                    </Text>
-                    <Text style={styles.debugText}>
-                      Original App User ID: {revenueCatData.customerInfo.originalAppUserId || 'N/A'}
-                    </Text>
-                    <Text style={styles.debugText}>
-                      Request Date: {revenueCatData.customerInfo.requestDate || 'N/A'}
-                    </Text>
-                    
-                    {/* Active Entitlements */}
-                    <Text style={styles.debugSubtitle}>Active Entitlements:</Text>
-                    {Object.keys(revenueCatData.customerInfo.entitlements.active || {}).length > 0 ? (
-                      Object.entries(revenueCatData.customerInfo.entitlements.active).map(([key, entitlement]) => (
-                        <View key={key} style={styles.debugEntitlement}>
-                          <Text style={styles.debugText}>
-                            • {key}:
-                          </Text>
-                          <Text style={styles.debugText}>
-                            {'  '}Product ID: {entitlement.productIdentifier || 'N/A'}
-                          </Text>
-                          <Text style={styles.debugText}>
-                            {'  '}Expiration: {entitlement.expirationDate || 'N/A'}
-                          </Text>
-                          <Text style={styles.debugText}>
-                            {'  '}Will Renew: {entitlement.willRenew ? 'Yes' : 'No'}
-                          </Text>
-                          <Text style={styles.debugText}>
-                            {'  '}Period Type: {entitlement.periodType || 'N/A'}
-                          </Text>
-                          <Text style={styles.debugText}>
-                            {'  '}Latest Purchase: {entitlement.latestPurchaseDate || 'N/A'}
-                          </Text>
-                          <Text style={styles.debugText}>
-                            {'  '}Original Purchase: {entitlement.originalPurchaseDate || 'N/A'}
-                          </Text>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.debugText}>Нет активных entitlements</Text>
-                    )}
-                    
-                    {/* All Entitlements */}
-                    <Text style={styles.debugSubtitle}>All Entitlements:</Text>
-                    {Object.keys(revenueCatData.customerInfo.entitlements.all || {}).length > 0 ? (
-                      Object.keys(revenueCatData.customerInfo.entitlements.all).map((key) => (
-                        <Text key={key} style={styles.debugText}>
-                          • {key}
-                        </Text>
-                      ))
-                    ) : (
-                      <Text style={styles.debugText}>Нет entitlements</Text>
-                    )}
-                    
-                    {/* Active Subscriptions */}
-                    <Text style={styles.debugSubtitle}>Active Subscriptions:</Text>
-                    {Object.keys(revenueCatData.customerInfo.activeSubscriptions || {}).length > 0 ? (
-                      Object.entries(revenueCatData.customerInfo.activeSubscriptions).map(([key, value]) => (
-                        <Text key={key} style={styles.debugText}>
-                          • {key}: {value || 'N/A'}
-                        </Text>
-                      ))
-                    ) : (
-                      <Text style={styles.debugText}>Нет активных подписок</Text>
-                    )}
-                    
-                    {/* Non-Subscription Purchases */}
-                    <Text style={styles.debugSubtitle}>Non-Subscription Purchases:</Text>
-                    {Object.keys(revenueCatData.customerInfo.nonSubscriptions || {}).length > 0 ? (
-                      Object.entries(revenueCatData.customerInfo.nonSubscriptions).map(([key, purchases]) => (
-                        <View key={key}>
-                          <Text style={styles.debugText}>• {key}:</Text>
-                          {Array.isArray(purchases) && purchases.map((purchase: any, idx: number) => (
-                            <Text key={idx} style={styles.debugText}>
-                              {'  '}Purchase {idx + 1}: {purchase.purchaseDate || 'N/A'}
-                            </Text>
-                          ))}
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.debugText}>Нет покупок без подписки</Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={styles.debugText}>Customer Info недоступен</Text>
-                )}
-              </View>
-              
-              {/* Offerings */}
-              <View style={styles.debugSection}>
-                <Text style={styles.debugSectionTitle}>
-                  Offerings ({revenueCatData.offerings.length}):
-                  {revenueCatData.offerings.length > 1 && (
-                    <Text style={styles.debugWarning}>
-                      {' '}⚠️ Найдено {revenueCatData.offerings.length} offerings
-                    </Text>
-                  )}
-                </Text>
-                {revenueCatData.offerings.length > 1 && (
-                  <Text style={styles.debugNote}>
-                    💡 Рекомендуется использовать один offering с несколькими packages внутри.
-                  </Text>
-                )}
-                {revenueCatData.offerings.length > 0 ? (
-                  revenueCatData.offerings.map((offering, idx) => {
-                    const isCurrent = idx === 0 && revenueCatData.offerings.length > 1;
-                    return (
-                      <View key={idx} style={[styles.debugOffering, isCurrent && styles.currentOffering]}>
-                        <Text style={styles.debugText}>
-                          Offering {idx + 1}: {offering.identifier || 'N/A'}
-                          {isCurrent && <Text style={styles.debugCurrentLabel}> (Current)</Text>}
-                        </Text>
-                        <Text style={styles.debugText}>
-                          {'  '}Server Description: {offering.serverDescription || 'N/A'}
-                        </Text>
-                        <Text style={styles.debugText}>
-                          {'  '}Packages ({offering.availablePackages?.length || 0}):
-                        </Text>
-                        {offering.availablePackages && offering.availablePackages.length > 0 ? (
-                          offering.availablePackages.map((pkg, pkgIdx) => (
-                            <View key={pkgIdx} style={styles.debugPackage}>
-                              <Text style={styles.debugText}>
-                                {'    '}Package {pkgIdx + 1}: {pkg.identifier || 'N/A'}
-                              </Text>
-                              <Text style={styles.debugText}>
-                                {'      '}Product ID: {pkg.storeProduct?.identifier || 'N/A'}
-                              </Text>
-                              <Text style={styles.debugText}>
-                                {'      '}Price: {pkg.storeProduct?.priceString || 'N/A'} ({pkg.storeProduct?.currencyCode || 'N/A'})
-                              </Text>
-                              <Text style={styles.debugText}>
-                                {'      '}Title: {pkg.storeProduct?.title || 'N/A'}
-                              </Text>
-                              <Text style={styles.debugText}>
-                                {'      '}Description: {pkg.storeProduct?.description || 'N/A'}
-                              </Text>
-                              <Text style={styles.debugText}>
-                                {'      '}Package Type: {pkg.packageType || 'N/A'}
-                              </Text>
-                            </View>
-                          ))
-                        ) : (
-                          <Text style={styles.debugText}>
-                            {'    '}Нет packages в этом offering
-                          </Text>
-                        )}
-                      </View>
-                    );
-                  })
-                ) : (
-                  <Text style={styles.debugText}>Нет доступных offerings</Text>
-                )}
-              </View>
-              
-              {/* Platform Info */}
-              <View style={styles.debugSection}>
-                <Text style={styles.debugSectionTitle}>Platform Info:</Text>
-                <Text style={styles.debugText}>
-                  Platform: {Platform.OS} ({Platform.Version})
-                </Text>
-                <Text style={styles.debugText}>
-                  RevenueCat Ready: {SubscriptionService.isReady() ? 'Yes' : 'No'}
-                </Text>
-                <Text style={styles.debugText}>
-                  Environment: {Platform.OS === 'ios' ? 'iOS Sandbox (для тестирования)' : 'Android'}
-                </Text>
-                <Text style={styles.debugNote}>
-                  ℹ️ Apple разрешает тестирование подписок в Sandbox среде без предварительного одобрения
-                </Text>
-              </View>
-            </View>
-          )}
-        </Card>
 
         {/* Privacy Policy and Terms of Service Links - Required by Apple */}
         <Card style={styles.linksBox}>
@@ -909,7 +650,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
       </ScrollView>
 
       {purchasing && (
-        <View style={styles.purchasingOverlay}>
+        <View style={[styles.purchasingOverlay, { backgroundColor: hexToRgba(COLORS.shadow, 0.72) }]}>
           <ActivityIndicator size="large" color={COLORS.error} />
           <Text style={styles.purchasingText}>
             {t('subscription.processing') || 'Обработка покупки...'}
@@ -940,26 +681,35 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
   );
 };
 
-const styles = StyleSheet.create({
+function createSubscriptionStyles() {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    gap: SPACING.xs,
   },
-  backButton: {
-    padding: SPACING.xs,
+  headerSideLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerSideRight: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
+    flexShrink: 1,
+    fontSize: 18,
     fontFamily: FONTS.bold,
     color: COLORS.accent,
+    textAlign: 'center',
   },
   content: {
     flex: 1,
@@ -1127,7 +877,12 @@ const styles = StyleSheet.create({
     color: COLORS.warning,
   },
   manageButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.info,
@@ -1155,7 +910,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1193,6 +947,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
   },
   manageInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     padding: SPACING.md,
     marginBottom: SPACING.lg,
     backgroundColor: COLORS.surface,
@@ -1384,5 +1140,7 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
 });
+
+}
 
 export default SubscriptionScreen;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ApiService from '../services/api';
 import BiometricService from '../services/biometricService';
@@ -69,22 +69,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
       // Проверяем наличие токена
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
-        // Загружаем данные пользователя
+        // Загружаем данные пользователя из кеша (быстро), затем подтягиваем свежий профиль с API в фоне
         try {
+          await ApiService.updateToken();
+
           const userData = await AsyncStorage.getItem('user_data');
           const user = userData ? JSON.parse(userData) : null;
-          
+
           setState({
             isGuest: false,
             isAuthenticated: true,
             user,
             isLoading: false,
           });
-          
-          // Инициализируем уведомления о тратах для уже залогиненного пользователя
+
           if (user?.id) {
             await NotificationService.initializeExpenseReminders(user.id);
           }
+
+          void (async () => {
+            try {
+              const fresh = await ApiService.getProfile();
+              await AsyncStorage.setItem('user_data', JSON.stringify(fresh));
+              setState((prev) => {
+                if (prev.isGuest || !prev.isAuthenticated) return prev;
+                return { ...prev, user: fresh };
+              });
+              if (!user?.id && fresh?.id) {
+                await NotificationService.initializeExpenseReminders(fresh.id);
+              }
+            } catch {
+              // офлайн или 401 — остаёмся на кешированном user
+            }
+          })();
         } catch (error) {
           console.error('Error loading user data:', error);
           setState({
@@ -341,27 +358,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onLoginPro
     }
   };
 
-  const refreshUser = async () => {
+  // Стабильная ссылка: иначе useFocusEffect(..., [refreshUser]) уходит в бесконечный цикл
+  // (каждый setState → новый refreshUser → эффект перезапускается → снова GET /user).
+  const refreshUser = useCallback(async () => {
     try {
-      if (!state.isAuthenticated || state.isGuest) {
+      const guestMode = await AsyncStorage.getItem('guest_mode');
+      if (guestMode === 'true') {
         return;
       }
 
-      // Получаем свежие данные пользователя с сервера
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        return;
+      }
+
       const userData = await ApiService.getProfile();
-      
-      // Сохраняем в AsyncStorage
+
       await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-      
-      // Обновляем состояние
-      setState(prev => ({
+
+      setState((prev) => ({
         ...prev,
         user: userData,
+        isAuthenticated: true,
+        isGuest: false,
       }));
     } catch (error) {
       console.error('Error refreshing user data:', error);
     }
-  };
+  }, []);
 
   const value: AuthContextType = {
     ...state,

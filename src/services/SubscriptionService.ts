@@ -1,12 +1,16 @@
-import Purchases, { 
-  PurchasesOffering, 
-  PurchasesPackage, 
+import Purchases, {
+  PurchasesOffering,
+  PurchasesPackage,
   CustomerInfo,
-  PurchasesError,
-  PURCHASES_ERROR_CODE
+  PurchasesEntitlementInfo,
+  PURCHASES_ERROR_CODE,
 } from 'react-native-purchases';
 import { Platform } from 'react-native';
 import ApiService from './api';
+
+/** Подробные логи RevenueCat и синка. Вкл.: EXPO_PUBLIC_DEBUG_SUBSCRIPTIONS=1 при __DEV__. */
+const RC_VERBOSE_LOGS =
+  __DEV__ && String(process.env.EXPO_PUBLIC_DEBUG_SUBSCRIPTIONS || '').trim() === '1';
 
 // Конфигурация RevenueCat из переменных окружения
 const REVENUECAT_API_KEY = {
@@ -36,16 +40,24 @@ export interface SubscriptionInfo {
 
 class SubscriptionService {
   private isInitialized = false;
+  /** Сериализация параллельных initialize() → меньше двойного configure и предупреждений SDK */
+  private initInFlight: Promise<void> | null = null;
 
   /**
    * Инициализация RevenueCat
    */
   async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+    if (!this.initInFlight) {
+      this.initInFlight = this.runInitializeOnce().finally(() => {
+        this.initInFlight = null;
+      });
+    }
+    await this.initInFlight;
+  }
+
+  private async runInitializeOnce(): Promise<void> {
     try {
-      if (this.isInitialized) {
-        return; // Уже инициализирован, не логируем
-      }
-      
       const apiKey = Platform.OS === 'ios' ? REVENUECAT_API_KEY.ios : REVENUECAT_API_KEY.android;
       
       if (!apiKey || typeof apiKey !== 'string') {
@@ -62,28 +74,28 @@ class SubscriptionService {
       }
       
       // Определяем тип ключа
-      const keyType = apiKey.startsWith('test_') ? 'TEST STORE ⚠️' 
-                   : apiKey.startsWith('appl_') ? 'iOS PRODUCTION ✅' 
-                   : apiKey.startsWith('goog_') ? 'ANDROID PRODUCTION ✅' 
+      const keyType = apiKey.startsWith('test_') ? 'TEST STORE ⚠️'
+                   : apiKey.startsWith('appl_') ? 'iOS PRODUCTION ✅'
+                   : apiKey.startsWith('goog_') ? 'ANDROID PRODUCTION ✅'
                    : 'UNKNOWN';
-      
-      // Один четкий лог с ключевой информацией
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔧 REVENUECAT CONFIGURATION:');
-      console.log(`   Platform: ${Platform.OS.toUpperCase()}`);
-      console.log(`   API Key: ${apiKey.substring(0, 20)}... (${keyType})`);
-      if (Platform.OS === 'ios') {
-        console.log(`   Sandbox Mode: Determined by iOS automatically`);
-        console.log(`   • Products with status "WAITING_FOR_REVIEW" are available ONLY in Sandbox`);
-        console.log(`   • Sandbox activates when: Device has Sandbox test account OR Apple is reviewing`);
+
+      if (RC_VERBOSE_LOGS) {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🔧 REVENUECAT CONFIGURATION:');
+        console.log(`   Platform: ${Platform.OS.toUpperCase()}`);
+        console.log(`   API Key: ${apiKey.substring(0, 20)}... (${keyType})`);
+        if (Platform.OS === 'ios') {
+          console.log(`   Sandbox Mode: Determined by iOS automatically`);
+          console.log(`   • Products with status "WAITING_FOR_REVIEW" are available ONLY in Sandbox`);
+          console.log(`   • Sandbox activates when: Device has Sandbox test account OR Apple is reviewing`);
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       }
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       await Purchases.configure({ 
         apiKey,
         appUserID: null,
-        observerMode: false,
-        userDefaultsSuiteName: null,
+        userDefaultsSuiteName: undefined,
         useAmazon: false,
         shouldShowInAppMessagesAutomatically: true
       });
@@ -99,7 +111,10 @@ class SubscriptionService {
       }
 
       this.isInitialized = true;
-      console.log('✅ RevenueCat initialized successfully');
+
+      if (RC_VERBOSE_LOGS) {
+        console.log('✅ RevenueCat initialized');
+      }
       
       // Примечание: Sandbox режим определяется автоматически при попытке покупки
       // iOS покажет диалог входа в Sandbox test account если он еще не настроен
@@ -109,6 +124,77 @@ class SubscriptionService {
       this.isInitialized = true;
       // Don't throw - allow app to continue without RevenueCat
     }
+  }
+
+  /** После покупки entitlements.active иногда пустой до обновления кэша или если продукт не привязан к entitlement в RC. */
+  private async refreshCustomerInfoIfStale(customerInfo: CustomerInfo): Promise<CustomerInfo> {
+    const hasActiveEntitlements =
+      Object.keys(customerInfo.entitlements?.active ?? {}).length > 0;
+    if (hasActiveEntitlements) return customerInfo;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await Purchases.invalidateCustomerInfoCache();
+        const delayMs = attempt === 0 ? 120 : 380 * attempt;
+        if (delayMs > 0) {
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+        const next = await Purchases.getCustomerInfo();
+        customerInfo = next;
+        if (Object.keys(next.entitlements?.active ?? {}).length > 0) break;
+        if ((next.activeSubscriptions?.length ?? 0) > 0) break;
+      } catch {
+        break;
+      }
+    }
+    return customerInfo;
+  }
+
+  /** Активное право: из entitlements.active или из all с isActive (на случай расхождений карты в SDK). */
+  private pickPrimaryActiveEntitlement(ci: CustomerInfo): PurchasesEntitlementInfo | null {
+    const prefer = (list: PurchasesEntitlementInfo[]): PurchasesEntitlementInfo | null => {
+      const prem = list.find((e) => e.identifier === ENTITLEMENTS.premium_access);
+      if (prem) return prem;
+      const pro = list.find((e) => e.identifier === ENTITLEMENTS.pro_access);
+      if (pro) return pro;
+      return list[0] ?? null;
+    };
+
+    const fromActive = prefer(Object.values(ci.entitlements.active ?? {}));
+    if (fromActive) return fromActive;
+
+    const fromAllActive = Object.values(ci.entitlements.all ?? {}).filter((e) => e.isActive);
+    return prefer(fromAllActive);
+  }
+
+  private skuIsPremium(productId: string): boolean {
+    const l = productId.toLowerCase();
+    return l.includes('premium') || productId === PRODUCT_IDS.premium_monthly;
+  }
+
+  private skuIsPro(productId: string): boolean {
+    if (this.skuIsPremium(productId)) return false;
+    const l = productId.toLowerCase();
+    return (
+      l.includes('pro') ||
+      productId === PRODUCT_IDS.pro_monthly ||
+      l.includes('pro_garage') ||
+      l === 'pro_monthly'
+    );
+  }
+
+  /** Fallback, если продукт куплен и виден в Store, но entitlement в RevenueCat не настроен. */
+  private pickPlanFromActiveSubscriptions(
+    ci: CustomerInfo
+  ): { plan: 'pro' | 'premium'; productId: string } | null {
+    const skus = ci.activeSubscriptions ?? [];
+    for (const id of skus) {
+      if (this.skuIsPremium(id)) return { plan: 'premium', productId: id };
+    }
+    for (const id of skus) {
+      if (this.skuIsPro(id)) return { plan: 'pro', productId: id };
+    }
+    return null;
   }
 
   private async getCurrentUserId(): Promise<string | null> {
@@ -131,122 +217,88 @@ class SubscriptionService {
         return;
       }
       
-      console.log('🔄 Syncing purchases and refreshing offerings cache...');
+      if (RC_VERBOSE_LOGS) {
+        console.log('[RC] Syncing purchases…');
+      }
       await Purchases.syncPurchases();
-      console.log('✅ Purchases synced');
+      if (RC_VERBOSE_LOGS) {
+        console.log('[RC] Purchases synced');
+      }
     } catch (error) {
       console.error('❌ Error syncing purchases:', error);
     }
   }
 
   async getOfferings(forceRefresh: boolean = false): Promise<PurchasesOffering[]> {
-
-    console.log('📦 RevenueCat Offerings start');
-    const offerings1 = await Purchases.getOfferings()
-    console.log('📦 RevenueCat Offerings (raw):', offerings1);
-
     try {
       if (!this.isInitialized) {
         await this.initialize();
       }
       
       if (!this.isInitialized) {
-        console.error('❌ RevenueCat not initialized');
+        console.error('[RC] RevenueCat not initialized');
         return [];
       }
 
-      // Принудительно обновляем, если нужно
       if (forceRefresh) {
-        console.log('🔄 Force refreshing offerings...');
+        if (RC_VERBOSE_LOGS) {
+          console.log('[RC] Force refreshing offerings…');
+        }
         await this.syncPurchases();
       }
 
       const offerings = await Purchases.getOfferings();
-      console.log('📦 RevenueCat Offerings (raw):', offerings);
-      
-      // Проверяем структуру данных
-      console.log('📦 Offerings structure check:');
-      console.log('   offerings exists:', !!offerings);
-      console.log('   offerings.current:', offerings?.current);
-      console.log('   offerings.all exists:', !!offerings?.all);
-      console.log('   offerings.all keys:', offerings?.all ? Object.keys(offerings.all) : 'N/A');
-      console.log('   offerings.all length:', offerings?.all ? Object.keys(offerings.all).length : 0);
-      
+
       if (!offerings) {
-        console.log('⚠️ Offerings is null/undefined');
         return [];
       }
-      
-      // Проверяем, есть ли данные в current или all
+
       if (!offerings.all || Object.keys(offerings.all).length === 0) {
-        console.log('⚠️ offerings.all is empty');
-        // Но может быть current offering
-        if (offerings.current) {
-          console.log('✅ Found current offering:', offerings.current.identifier);
-          return [offerings.current];
-        }
-        console.log('⚠️ No offerings available');
-        return [];
+        return offerings.current ? [offerings.current] : [];
       }
-      
+
       const offeringsArray = Object.values(offerings.all);
-      console.log('📦 Offerings array length:', offeringsArray.length);
-      
-      // Проверяем каждый offering и его packages
-      offeringsArray.forEach((offering, idx) => {
-        console.log(`📦 Offering ${idx + 1}: ${offering?.identifier || 'N/A'}`);
-        console.log(`   Packages count: ${offering?.availablePackages?.length || 0}`);
-        if (offering?.availablePackages) {
-          offering.availablePackages.forEach((pkg, pkgIdx) => {
-            const product = (pkg as any)?.product || (pkg as any)?.storeProduct;
-            console.log(`   Package ${pkgIdx + 1}: ${pkg?.identifier || 'N/A'}`);
-            console.log(`      Has product: ${!!product}`);
-            console.log(`      Product ID: ${product?.identifier || 'N/A'}`);
-          });
-        }
-      });
-      
-      // Убираем дубликаты по identifier
       const seenIdentifiers = new Set<string>();
       const uniqueOfferings: PurchasesOffering[] = [];
-      
-      // Если есть current offering, добавляем его первым
-      if (offerings.current && offerings.current.identifier) {
-        console.log('✅ Adding current offering:', offerings.current.identifier);
+
+      if (offerings.current?.identifier) {
         uniqueOfferings.push(offerings.current);
         seenIdentifiers.add(offerings.current.identifier);
       }
-      
-      // Добавляем остальные уникальные offerings
-      offeringsArray.forEach(offering => {
-        if (offering && offering.identifier && !seenIdentifiers.has(offering.identifier)) {
-          console.log('✅ Adding offering:', offering.identifier);
+
+      offeringsArray.forEach((offering) => {
+        if (offering?.identifier && !seenIdentifiers.has(offering.identifier)) {
           uniqueOfferings.push(offering);
           seenIdentifiers.add(offering.identifier);
         }
       });
-      
-      console.log('📦 Total unique offerings returned:', uniqueOfferings.length);
+
+      if (RC_VERBOSE_LOGS) {
+        const summary = uniqueOfferings
+          .map((o) => `${o.identifier} (${o.availablePackages?.length ?? 0} pkgs)`)
+          .join('; ');
+        console.log(`[RC] Offerings: ${summary}`);
+      }
+
       return uniqueOfferings;
     } catch (error: any) {
-      // НЕ возвращаем пустой массив - выводим ошибку, но SDK может все равно вернуть данные
-      console.error('❌ Error getting offerings:', error);
-      console.error('❌ Error message:', error?.message);
-      console.error('❌ Error code:', error?.code);
-      console.error('❌ Error userInfo:', error?.userInfo);
-      console.error('❌ Full error object:', error);
-      
-      // Попробуем все равно получить данные, даже если была ошибка
-      try {
-        const offerings = await Purchases.getOfferings();
-        console.log('⚠️ Got offerings despite error:', offerings);
-        if (offerings && offerings.all) {
-          return Object.values(offerings.all);
-        }
-      } catch (e) {
-        // Ignore
+      console.error('[RC] getOfferings failed:', error?.message ?? error);
+      if (RC_VERBOSE_LOGS) {
+        console.error('[RC] code:', error?.code, error?.userInfo);
       }
-      
+
+      try {
+        const fallback = await Purchases.getOfferings();
+        if (fallback?.all && Object.keys(fallback.all).length > 0) {
+          if (RC_VERBOSE_LOGS) {
+            console.warn('[RC] Fallback after error:', Object.keys(fallback.all).join(', '));
+          }
+          return Object.values(fallback.all);
+        }
+      } catch {
+        // ignore
+      }
+
       return [];
     }
   }
@@ -263,9 +315,9 @@ class SubscriptionService {
       if (packageToPurchase.offeringIdentifier === 'direct') {
         const directProduct = (packageToPurchase as any).product || (packageToPurchase as any).storeProduct;
         if (directProduct && directProduct.identifier) {
-          console.log('🛒 Purchasing direct product (bypassing offerings):', directProduct.identifier);
-          console.log('   Product title:', directProduct.title);
-          console.log('   Product price:', directProduct.priceString || directProduct.pricePerMonthString);
+          if (RC_VERBOSE_LOGS) {
+            console.log('[RC] purchaseProduct', directProduct.identifier);
+          }
           
           const { customerInfo } = await Purchases.purchaseProduct(directProduct.identifier);
           await this.syncWithBackend(customerInfo);
@@ -273,42 +325,63 @@ class SubscriptionService {
         }
       }
 
-      // Обычная покупка через package из offerings
-      console.log('🛒 Purchasing package:', packageToPurchase.identifier);
+      if (RC_VERBOSE_LOGS) {
+        console.log('[RC] purchasePackage', packageToPurchase.identifier);
+      }
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
       await this.syncWithBackend(customerInfo);
       
       return customerInfo;
     } catch (error: any) {
-      console.error('❌ Error purchasing package:', error);
-      console.error('❌ Error type:', typeof error);
-      console.error('❌ Error constructor:', error?.constructor?.name);
-      console.error('❌ Error code:', error?.code);
-      console.error('❌ Error message:', error?.message);
+      console.error('[RC] purchase failed:', error?.code ?? '?', error?.message ?? error);
+      if (RC_VERBOSE_LOGS) {
+        console.error('[RC] purchase detail:', typeof error, error?.constructor?.name, error?.userInfo);
+      }
       
-      // Безопасная проверка ошибки RevenueCat
-      const isPurchasesError = error && (
-        error instanceof PurchasesError ||
-        (typeof PurchasesError !== 'undefined' && error instanceof PurchasesError) ||
-        (error.code !== undefined && error.message !== undefined)
-      );
-      
-      if (isPurchasesError && error.code) {
+      // Безопасная проверка ошибки RevenueCat без использования instanceof
+      // Проверяем наличие кода ошибки
+      if (error && typeof error === 'object') {
         const errorCode = error.code;
+        const readableErrorCode = error.readable_error_code;
         
-        switch (errorCode) {
-          case PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR:
+        // Проверяем коды ошибок RevenueCat
+        if (errorCode !== undefined || readableErrorCode) {
+          // Проверяем STORE_PROBLEM ошибку (код 2 или readable_error_code)
+          if (errorCode === PURCHASES_ERROR_CODE.STORE_PROBLEM_ERROR || 
+              errorCode === 2 || 
+              readableErrorCode === 'STORE_PROBLEM') {
+            // Для iOS сандбокс это может означать проблемы с настройкой
+            if (Platform.OS === 'ios') {
+              throw new Error('Проблема с App Store. Убедитесь, что:\n1. Вы используете Sandbox тестовый аккаунт\n2. Продукты настроены в App Store Connect\n3. Приложение правильно подписано');
+            } else {
+              throw new Error('Проблема с магазином приложений. Убедитесь, что используется release сборка.');
+            }
+          }
+          
+          // Другие типы ошибок RevenueCat
+          if (errorCode === PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR) {
             throw new Error('Покупка отменена пользователем');
-          case PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR:
+          }
+          
+          if (errorCode === PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR) {
             throw new Error('Платеж обрабатывается');
-          case PURCHASES_ERROR_CODE.PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR:
+          }
+          
+          if (errorCode === PURCHASES_ERROR_CODE.PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR) {
             throw new Error('Продукт недоступен для покупки');
-          case PURCHASES_ERROR_CODE.NETWORK_ERROR:
-            throw new Error('Ошибка сети');
-          case PURCHASES_ERROR_CODE.STORE_PROBLEM_ERROR:
-            throw new Error('Проблема с магазином приложений. Убедитесь, что используется release сборка.');
-          default:
-            throw new Error(error.message || 'Ошибка при покупке подписки');
+          }
+          
+          if (errorCode === PURCHASES_ERROR_CODE.NETWORK_ERROR) {
+            throw new Error('Ошибка сети. Проверьте подключение к интернету.');
+          }
+          
+          if (errorCode === PURCHASES_ERROR_CODE.PURCHASE_INVALID_ERROR) {
+            throw new Error('Покупка недействительна');
+          }
+          
+          if (errorCode === PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED_ERROR) {
+            throw new Error('Покупки не разрешены на этом устройстве');
+          }
         }
       }
       
@@ -317,7 +390,14 @@ class SubscriptionService {
         throw new Error('Эта версия приложения не поддерживает покупки. Используйте release сборку, подписанную релизным ключом.');
       }
       
-      throw error;
+      // Если ошибка связана с App Store
+      if (error?.message?.includes('App Store') || error?.readable_error_code === 'STORE_PROBLEM') {
+        throw new Error('Проблема с App Store. Убедитесь, что:\n1. Вы используете Sandbox тестовый аккаунт\n2. Продукты настроены в App Store Connect\n3. Приложение правильно подписано');
+      }
+      
+      // Пробрасываем оригинальную ошибку с улучшенным сообщением
+      const finalMessage = error?.message || error?.userInfo?.NSLocalizedDescription || 'Ошибка при покупке подписки';
+      throw new Error(finalMessage);
     }
   }
 
@@ -341,7 +421,7 @@ class SubscriptionService {
       return {
         isPro: customerInfo.entitlements.active[ENTITLEMENTS.pro_access] !== undefined,
         isPremium: customerInfo.entitlements.active[ENTITLEMENTS.premium_access] !== undefined,
-        expirationDate: customerInfo.entitlements.active[ENTITLEMENTS.pro_access]?.expirationDate,
+        expirationDate: customerInfo.entitlements.active[ENTITLEMENTS.pro_access]?.expirationDate || undefined,
         productId: customerInfo.entitlements.active[ENTITLEMENTS.pro_access]?.productIdentifier,
         willRenew: customerInfo.entitlements.active[ENTITLEMENTS.pro_access]?.willRenew
       };
@@ -388,71 +468,146 @@ class SubscriptionService {
     }
   }
 
-  private async syncWithBackend(customerInfo: CustomerInfo): Promise<void> {
-    try {
-      console.log('🔄 Syncing subscription with backend...');
-      const activeEntitlements = Object.values(customerInfo.entitlements.active);
-      
-      console.log(`📦 Active entitlements count: ${activeEntitlements.length}`);
-      
-      if (activeEntitlements.length > 0) {
-        const activeEntitlement = activeEntitlements[0];
-        console.log(`📦 Active entitlement: ${activeEntitlement.identifier}`);
-        console.log(`📦 Expected pro_access: ${ENTITLEMENTS.pro_access}`);
-        console.log(`📦 Expected premium_access: ${ENTITLEMENTS.premium_access}`);
-        console.log(`📦 All entitlements:`, Object.keys(customerInfo.entitlements.active || {}));
-        
-        let subscriptionType = 'free';
-        if (activeEntitlement.identifier === ENTITLEMENTS.pro_access) {
-          subscriptionType = 'pro';
-        } else if (activeEntitlement.identifier === ENTITLEMENTS.premium_access) {
-          subscriptionType = 'premium';
-        } else {
-          // Fallback: если entitlement не совпадает, но есть активная подписка, используем pro
-          console.warn(`⚠️ Unknown entitlement identifier: ${activeEntitlement.identifier}, defaulting to pro`);
-          subscriptionType = 'pro';
-        }
+  private iosReceiptPayload(customerInfo: CustomerInfo): string | undefined {
+    const anyInfo = customerInfo as any;
+    let receipt = anyInfo.latestReceipt || anyInfo.latest_receipt;
+    if (!receipt && anyInfo.latestReceiptInfo?.latest_receipt) {
+      receipt = anyInfo.latestReceiptInfo.latest_receipt;
+    }
+    return receipt;
+  }
 
-        console.log(`📦 Subscription type: ${subscriptionType}`);
+  private async syncEntitlementWithBackend(
+    ci: CustomerInfo,
+    entitlement: PurchasesEntitlementInfo
+  ): Promise<void> {
+    let subscriptionType: 'pro' | 'premium';
+    if (entitlement.identifier === ENTITLEMENTS.pro_access) {
+      subscriptionType = 'pro';
+    } else if (entitlement.identifier === ENTITLEMENTS.premium_access) {
+      subscriptionType = 'premium';
+    } else {
+      console.warn(`[RC] Unknown entitlement "${entitlement.identifier}", treating as pro`);
+      subscriptionType = 'pro';
+    }
 
-        // For iOS: use latest_receipt from RevenueCat (base64-encoded receipt)
-        // For Android: receipt data is handled differently
-        let receiptData: string | undefined;
-        if (Platform.OS === 'ios') {
-          // RevenueCat provides latestReceipt for iOS (base64-encoded App Store receipt)
-          // This is required for server-side receipt validation (Apple App Store Review requirement)
-          const customerInfoAny = customerInfo as any;
-          
-          // Try to get latestReceipt from CustomerInfo
-          receiptData = customerInfoAny.latestReceipt || customerInfoAny.latest_receipt;
-          
-          if (receiptData) {
-            console.log('✅ Found receipt data from RevenueCat (length:', receiptData.length, ')');
-          } else {
-            console.warn('⚠️ Receipt data not found in CustomerInfo. Server validation may fail.');
-            console.warn('⚠️ Available CustomerInfo keys:', Object.keys(customerInfoAny));
+    if (RC_VERBOSE_LOGS) {
+      console.log(
+        '[RC] entitlement sync:',
+        Object.keys(ci.entitlements.active || {}),
+        `→ ${subscriptionType}`
+      );
+    }
+
+    let receiptData: string | undefined;
+    if (Platform.OS === 'ios') {
+      receiptData = this.iosReceiptPayload(ci);
+      if (receiptData) {
+        if (RC_VERBOSE_LOGS) {
+          console.log('[RC] receipt ok, len:', receiptData.length, entitlement.productIdentifier ?? '');
+          const entitlementAny = entitlement as any;
+          if (entitlementAny.isSandbox !== undefined) {
+            console.log('[RC] sandbox:', entitlementAny.isSandbox);
           }
         }
-
-        const transactionId = activeEntitlement.originalPurchaseDate || activeEntitlement.latestPurchaseDate || '';
-        console.log(`📦 Transaction ID: ${transactionId}`);
-        console.log(`📦 Sending verification to backend...`);
-
-        await ApiService.verifySubscription({
-          platform: Platform.OS,
-          transaction_id: transactionId,
-          original_transaction_id: activeEntitlement.originalPurchaseDate || undefined,
-          subscription_type: subscriptionType,
-          receipt_data: receiptData
-        });
-        
-        console.log('✅ Subscription synced with backend successfully');
       } else {
-        console.warn('⚠️ No active entitlements found in CustomerInfo');
+        console.warn('[RC] iOS receipt missing — серверная проверка может не пройти');
+        if (RC_VERBOSE_LOGS) {
+          console.warn('[RC] CustomerInfo keys:', Object.keys(ci as any));
+        }
       }
+    }
+
+    const entitlementAny = entitlement as any;
+    const transactionId =
+      entitlementAny.latestTransactionIdentifier ||
+      entitlementAny.latestTransactionId ||
+      entitlementAny.transactionIdentifier ||
+      entitlementAny.transactionId ||
+      entitlement.productIdentifier ||
+      'unknown';
+
+    const originalTransactionId =
+      entitlementAny.originalTransactionIdentifier ||
+      entitlementAny.originalTransactionId ||
+      transactionId;
+
+    if (RC_VERBOSE_LOGS) {
+      console.log('[RC] verify tx:', transactionId, originalTransactionId);
+    }
+
+    await ApiService.verifySubscription({
+      platform: Platform.OS,
+      transaction_id: transactionId,
+      original_transaction_id: originalTransactionId,
+      subscription_type: subscriptionType,
+      receipt_data: receiptData,
+    });
+
+    if (RC_VERBOSE_LOGS) {
+      console.log('[RC] backend verify OK');
+    }
+  }
+
+  /**
+   * Store уже показывает активную подписку, но entitlements в RC пусты
+   * (продукт не добавлен к entitlement в Dashboard).
+   */
+  private async syncActiveSkuWithBackend(
+    ci: CustomerInfo,
+    pick: { plan: 'pro' | 'premium'; productId: string }
+  ): Promise<void> {
+    const meta = ci.subscriptionsByProductIdentifier?.[pick.productId];
+    const transactionId = meta?.storeTransactionId || pick.productId;
+    const originalTransactionId = transactionId;
+
+    let receiptData: string | undefined;
+    if (Platform.OS === 'ios') {
+      receiptData = this.iosReceiptPayload(ci);
+      if (!receiptData) {
+        console.warn('[RC] iOS receipt отсутствует — включите связку Product → Entitlement в RevenueCat');
+      }
+    }
+
+    console.warn(
+      `[RC] Обход по SKU: ${pick.plan} («${pick.productId}»). В RevenueCat привяжите этот Store product к entitlement (pro_access / premium_access).`
+    );
+
+    await ApiService.verifySubscription({
+      platform: Platform.OS,
+      transaction_id: transactionId,
+      original_transaction_id: originalTransactionId,
+      subscription_type: pick.plan,
+      receipt_data: receiptData,
+    });
+  }
+
+  private async syncWithBackend(customerInfo: CustomerInfo): Promise<void> {
+    try {
+      if (RC_VERBOSE_LOGS) {
+        console.log('[RC] sync subscription → backend');
+      }
+
+      const ci = await this.refreshCustomerInfoIfStale(customerInfo);
+
+      const entitlement = this.pickPrimaryActiveEntitlement(ci);
+      if (entitlement) {
+        await this.syncEntitlementWithBackend(ci, entitlement);
+        return;
+      }
+
+      const fromSkus = this.pickPlanFromActiveSubscriptions(ci);
+      if (fromSkus) {
+        await this.syncActiveSkuWithBackend(ci, fromSkus);
+        return;
+      }
+
+      console.warn(
+        '[RC] Нет активных entitlements и нет распознанного activeSubscriptions:',
+        JSON.stringify(ci.activeSubscriptions ?? [])
+      );
     } catch (error) {
-      console.error('❌ Error syncing with backend:', error);
-      console.error('❌ Error details:', error);
+      console.error('[RC] syncWithBackend:', error);
     }
   }
 

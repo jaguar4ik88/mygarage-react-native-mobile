@@ -6,10 +6,12 @@ import {
   StyleSheet,
   Platform,
   Modal,
+  TextStyle,
+  ViewStyle,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from './Icon';
-import { COLORS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface DateInputProps {
@@ -20,6 +22,9 @@ interface DateInputProps {
   error?: string;
   maximumDate?: Date;
   minimumDate?: Date;
+  labelStyle?: TextStyle;
+  fieldStyle?: ViewStyle;
+  containerStyle?: ViewStyle;
 }
 
 const DateInput: React.FC<DateInputProps> = ({
@@ -30,6 +35,9 @@ const DateInput: React.FC<DateInputProps> = ({
   error,
   maximumDate,
   minimumDate,
+  labelStyle,
+  fieldStyle,
+  containerStyle,
 }) => {
   const { t } = useLanguage();
   const finalPlaceholder = placeholder || t('expenseModal.date');
@@ -75,10 +83,10 @@ const DateInput: React.FC<DateInputProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.container, containerStyle]}>
+      <Text style={[styles.label, labelStyle]}>{label}</Text>
       <TouchableOpacity 
-        style={[styles.dateInput, error && styles.inputError]}
+        style={[styles.dateInput, fieldStyle, error && styles.inputError]}
         onPress={showDatePickerModal}
       >
         <Text style={[styles.dateInputText, !value && styles.placeholderText]}>
@@ -149,16 +157,18 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: COLORS.text,
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   dateInput: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: RADIUS.xl,
     padding: SPACING.md,
     flexDirection: 'row',
     justifyContent: 'space-between',

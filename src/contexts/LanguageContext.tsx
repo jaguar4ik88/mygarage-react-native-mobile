@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from '../i18n';
 
@@ -7,7 +7,7 @@ export type Language = 'uk' | 'en' | 'ru';
 interface LanguageContextType {
   language: Language;
   setLanguage: (language: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, string | number>) => string;
   isLanguageLoaded: boolean;
 }
 
@@ -18,7 +18,7 @@ interface LanguageProviderProps {
 }
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>((i18n.language as Language) || 'uk');
+  const [language, setLanguageState] = useState<Language>((i18n.language as Language) || 'en');
   const [isLanguageLoaded, setIsLanguageLoaded] = useState(false);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
           setLanguageState(savedLanguage as Language);
         } else {
           // Use auto-detected language from i18n initialization
-          const current = (i18n.language as Language) || 'uk';
+          const current = (i18n.language as Language) || 'en';
           setLanguageState(current);
         }
       } catch (error) {
@@ -42,12 +42,12 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     loadSavedLanguage();
 
     // Sync local state when i18n language changes
-    const handler = () => setLanguageState((i18n.language as Language) || 'uk');
+    const handler = () => setLanguageState((i18n.language as Language) || 'en');
     i18n.on('languageChanged', handler);
     return () => { i18n.off('languageChanged', handler); };
   }, []);
 
-  const setLanguage = async (newLanguage: Language) => {
+  const setLanguage = useCallback(async (newLanguage: Language) => {
     try {
       console.log('Changing language to:', newLanguage);
       await i18n.changeLanguage(newLanguage);
@@ -56,24 +56,24 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
       console.log('Language changed successfully to:', newLanguage);
     } catch (error) {
       console.error('Error saving language:', error);
-      // Fallback to current language if change fails
-      setLanguageState(i18n.language as Language || 'uk');
+      setLanguageState(i18n.language as Language || 'en');
     }
-  };
+  }, []);
 
-  const t = (key: string): string => {
+  const t = useCallback((key: string, options?: Record<string, string | number>): string => {
     if (!i18n.isInitialized) {
       console.warn('i18n not initialized yet, returning key:', key);
       return key;
     }
-    return i18n.t(key as any) as unknown as string;
-  };
+    return i18n.t(key as any, options ?? {}) as unknown as string;
+  }, []);
 
-  return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, isLanguageLoaded }}>
-      {children}
-    </LanguageContext.Provider>
+  const value = useMemo(
+    () => ({ language, setLanguage, t, isLanguageLoaded }),
+    [language, setLanguage, t, isLanguageLoaded]
   );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
 export const useLanguage = (): LanguageContextType => {

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../components/Icon';
+import ScreenBackLink from '../components/ScreenBackLink';
 import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import ApiService from '../services/api';
@@ -251,11 +252,13 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onBack }) => 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Icon name="arrow-left" size={24} color={COLORS.accent} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Политика конфиденциальности</Text>
-        <View style={styles.placeholder} />
+        <View style={styles.headerSideLeft}>
+          <ScreenBackLink layout="toolbar" onPress={onBack} />
+        </View>
+        <Text style={styles.title} numberOfLines={2}>
+          {t('profile.privacyPolicy')}
+        </Text>
+        <View style={styles.headerSideRight} />
       </View>
 
       <ScrollView 
@@ -286,19 +289,22 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    gap: SPACING.xs,
   },
-  backButton: {
-    padding: SPACING.xs,
+  headerSideLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerSideRight: {
+    flex: 1,
   },
   title: {
-    flex: 1,
+    flexShrink: 1,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.accent,
     textAlign: 'center',
-  },
-  placeholder: {
-    width: 40,
   },
   content: {
     flex: 1,

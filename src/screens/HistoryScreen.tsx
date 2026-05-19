@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -25,12 +25,13 @@ import ExpenseModal from '../components/ExpenseModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Icon from '../components/Icon';
 import DateInput from '../components/DateInput';
-import Paywall from '../components/Paywall';
-import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
+import { Fuel, Wrench, Shield, MoreHorizontal } from 'lucide-react-native';
+import { COLORS, FONTS, SPACING, BASE_URL, RADIUS, hexToRgba } from '../constants';
 import ApiService from '../services/api';
 import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import Analytics from '../services/analyticsService';
 import PdfExportService from '../services/pdfExportService';
 
@@ -41,6 +42,7 @@ interface HistoryScreenProps {
 const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const { t, language } = useLanguage();
   const { isGuest, promptToLogin, user, refreshUser } = useAuth();
+  const { appearanceKey } = useTheme();
   const [history, setHistory] = useState<ServiceHistory[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,7 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ServiceHistory | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
+  const [filterVehicleId, setFilterVehicleId] = useState<number | 'all'>('all');
   const [userCurrency, setUserCurrency] = useState<string>('UAH');
   const [expenseTypes, setExpenseTypes] = useState<Array<{ id: number; slug: string; name: string }>>([]);
   const [formData, setFormData] = useState({
@@ -60,7 +63,6 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
     service_date: '',
   });
   const [receiptPhoto, setReceiptPhoto] = useState<any>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [viewingRecord, setViewingRecord] = useState<ServiceHistory | null>(null);
   const [receiptPhotoUrl, setReceiptPhotoUrl] = useState<string | null>(null);
@@ -146,7 +148,7 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         });
         
         if (vehiclesData.length > 0) {
-          setSelectedVehicle(vehiclesData[0].id);
+          setSelectedVehicle((prev) => (prev != null ? prev : vehiclesData[0].id));
         }
       } else {
         setHistory(prev => [...prev, ...historyResponse.data]);
@@ -196,28 +198,38 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
     });
   };
 
-  const handleAddRecord = async () => {
-    // Проверка на гостевой режим
+  const handleAddRecord = useCallback(async () => {
     if (isGuest) {
       console.log('👤 Guest trying to add record, showing login prompt');
       promptToLogin();
       return;
     }
-    
-    // Обновляем данные пользователя перед открытием модалки
+
     await refreshUser();
-    
+
     setEditingRecord(null);
+    const vid =
+      filterVehicleId !== 'all'
+        ? filterVehicleId
+        : selectedVehicle ?? vehicles[0]?.id ?? null;
     setFormData({
-      vehicle_id: selectedVehicle?.toString() || '',
+      vehicle_id: vid != null ? String(vid) : '',
       expense_type_id: expenseTypes[0]?.id ? String(expenseTypes[0].id) : '',
       description: '',
       cost: '',
-      service_date: new Date().toISOString().split('T')[0], // Today's date
+      service_date: new Date().toISOString().split('T')[0],
     });
     setErrors({});
     setShowAddModal(true);
-  };
+  }, [
+    isGuest,
+    promptToLogin,
+    refreshUser,
+    filterVehicleId,
+    selectedVehicle,
+    vehicles,
+    expenseTypes,
+  ]);
 
   const handleEditRecord = async (record: ServiceHistory) => {
     // Обновляем данные пользователя перед открытием модалки
@@ -356,6 +368,117 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
       currency: userCurrency,
     }).format(amount);
   };
+
+  const displayedHistory = useMemo(() => {
+    if (filterVehicleId === 'all') return history;
+    return history.filter((r) => r.vehicle_id === filterVehicleId);
+  }, [history, filterVehicleId]);
+
+  const modalVehicleId =
+    filterVehicleId !== 'all'
+      ? filterVehicleId
+      : selectedVehicle ?? vehicles[0]?.id ?? null;
+
+  const getExpenseSlug = (record: ServiceHistory): string => {
+    if (record.expense_type_id) {
+      const et = expenseTypes.find((e) => e.id === record.expense_type_id);
+      if (et?.slug) return et.slug;
+    }
+    const raw = (record as any).type;
+    return typeof raw === 'string' ? raw : 'other';
+  };
+
+  const chromeStyles = useMemo(() => {
+    return StyleSheet.create({
+      chipsScroll: {
+        marginBottom: SPACING.sm,
+        flexGrow: 0,
+      },
+      chipsScrollContent: {
+        paddingRight: SPACING.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+      },
+      chip: {
+        marginRight: SPACING.sm,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: 6,
+        borderRadius: RADIUS.pill,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+      },
+      chipActive: {
+        borderColor: COLORS.accent,
+        backgroundColor: hexToRgba(COLORS.accent, 0.12),
+      },
+      chipText: {
+        fontFamily: FONTS.medium,
+        fontSize: 12,
+        color: COLORS.textSecondary,
+      },
+      chipTextActive: {
+        color: COLORS.accent,
+        fontFamily: FONTS.semiBold,
+      },
+      recordRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.sm,
+        padding: SPACING.md,
+        borderRadius: RADIUS.lg,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+      },
+      iconBubble: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        backgroundColor: hexToRgba(COLORS.text, 0.06),
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: SPACING.md,
+      },
+      recordMeta: {
+        fontFamily: FONTS.regular,
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        marginTop: 4,
+      },
+      recordTitleMock: {
+        fontFamily: FONTS.semiBold,
+        fontSize: 14,
+        color: COLORS.text,
+      },
+      recordCostMock: {
+        fontFamily: FONTS.bold,
+        fontSize: 14,
+        letterSpacing: -0.2,
+        color: COLORS.text,
+        marginLeft: SPACING.sm,
+      },
+    });
+  }, [appearanceKey]);
+
+  const styles = useMemo(() => createHistoryScreenStyles(), [appearanceKey]);
+
+  useLayoutEffect(() => {
+    navigation?.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => void handleAddRecord()}
+          style={{ paddingHorizontal: SPACING.md }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('history.addRecord')}
+        >
+          <Icon name="add" size={22} color={COLORS.accent} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t, handleAddRecord, appearanceKey]);
 
   // Функция для попытки загрузки фото с разными URL
   const tryLoadImage = async (photoPath: string, recordId?: number): Promise<string | null> => {
@@ -503,115 +626,128 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
           </View>
         )}
         <FlatList
-          data={history}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item: record }) => {
-            const vehicle = vehicles.find(v => v.id === record.vehicle_id);
-            
-            return (
-              <Card 
-                style={styles.recordCard}
-                onPress={() => setViewingRecord(record)}
-              >
-                <View style={styles.recordHeader}>
-                  <View style={styles.recordInfo}>
-                    <Text style={styles.recordDescription} numberOfLines={2} ellipsizeMode="tail">{record.description}</Text>
-                    <Text style={styles.recordVehicle}>
-                      {vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : t('history.unknownVehicle')}
+            data={displayedHistory}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item: record }) => {
+              const slug = getExpenseSlug(record);
+              const s = slug.toLowerCase();
+              const MetaIcon =
+                s === 'fuel'
+                  ? Fuel
+                  : s === 'repair' || s === 'maintenance' || s === 'service'
+                    ? Wrench
+                    : s === 'insurance'
+                      ? Shield
+                      : MoreHorizontal;
+              const typeName =
+                expenseTypes.find((et) => et.id === record.expense_type_id)?.name || t('history.other');
+              return (
+                <TouchableOpacity
+                  style={chromeStyles.recordRow}
+                  activeOpacity={0.85}
+                  onPress={() => setViewingRecord(record)}
+                >
+                  <View style={chromeStyles.iconBubble}>
+                    <MetaIcon size={18} color={COLORS.accent} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={chromeStyles.recordTitleMock} numberOfLines={1}>
+                      {record.description || typeName}
                     </Text>
-                    <Text style={styles.recordDate}>
-                      {formatDate(record.service_date)}
+                    <Text style={chromeStyles.recordMeta} numberOfLines={1}>
+                      {typeName} · {formatDate(record.service_date)}
                     </Text>
                   </View>
-                  <View style={styles.recordActions}>
-                    <TouchableOpacity
-                      onPress={() => handleEditRecord(record)}
-                      style={styles.actionButton}
-                    >
-                      <Icon name="edit" size={16} color={COLORS.text} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteRecord(record.id)}
-                      style={styles.actionButton}
-                    >
-                      <Icon name="delete" size={16} color={COLORS.error} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <View style={styles.recordFooter}>
+                  <Text style={chromeStyles.recordCostMock}>{formatCurrency(record.cost)}</Text>
+                </TouchableOpacity>
+              );
+            }}
+            ListHeaderComponent={() => (
+              <View style={{ paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.sm }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={chromeStyles.chipsScroll}
+                  contentContainerStyle={chromeStyles.chipsScrollContent}
+                >
+                  <TouchableOpacity
+                    style={[chromeStyles.chip, filterVehicleId === 'all' && chromeStyles.chipActive]}
+                    onPress={() => setFilterVehicleId('all')}
+                    activeOpacity={0.85}
+                  >
                     <Text
-                      style={styles.recordType}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
+                      style={[
+                        chromeStyles.chipText,
+                        filterVehicleId === 'all' && chromeStyles.chipTextActive,
+                      ]}
                     >
-                      {t('history.recordType')}: {expenseTypes.find(et => et.id === record.expense_type_id)?.name || t('history.other')}
+                      {t('history.allVehicles')}
                     </Text>
-                    <Text style={styles.recordCost}>{formatCurrency(record.cost)}</Text>
-                  </View>
+                  </TouchableOpacity>
+                  {vehicles.map((v) => (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[chromeStyles.chip, filterVehicleId === v.id && chromeStyles.chipActive]}
+                      onPress={() => {
+                        setFilterVehicleId(v.id);
+                        setSelectedVehicle(v.id);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          chromeStyles.chipText,
+                          filterVehicleId === v.id && chromeStyles.chipTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {`${v.make} ${v.model}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+            ListEmptyComponent={() => (
+              <Card style={styles.emptyState}>
+                <Text style={styles.emptyStateTitle}>
+                  {history.length > 0 && displayedHistory.length === 0
+                    ? t('history.noRecordsForFilter')
+                    : t('history.noRecords')}
+                </Text>
+                <Text style={styles.emptyStateText}>
+                  {history.length > 0 && displayedHistory.length === 0
+                    ? t('history.tryAnotherVehicle')
+                    : t('history.noRecordsText')}
+                </Text>
+                {history.length === 0 ? (
+                  <Button
+                    title={t('history.addRecord')}
+                    onPress={handleAddRecord}
+                    style={styles.addRecordButton}
+                    size="small"
+                  />
+                ) : null}
               </Card>
-            );
-          }}
-          ListHeaderComponent={() => (
-            <>
-              <View style={styles.topActions}>
-                <Button 
-                  title={t('history.addRecord')} 
-                  onPress={handleAddRecord} 
-                  style={styles.addRecordButton}
-                  size="small"
-                />
-                <Button 
-                  title={t('actions.statistics')} 
-                  onPress={() => navigation?.navigate('Reports')} 
-                  style={styles.statisticsButton}
-                  size="small"
-                />
-              </View>
-              <View style={styles.statsContainer}>
-                <Card style={styles.statCard}>
-                  <Text style={styles.statValue}>{formatCurrency(stats.totalSpent)}</Text>
-                  <Text style={styles.statLabel}>{t('history.totalSpent')}</Text>
-                </Card>
-                <Card style={styles.statCard}>
-                  <Text style={styles.statValue}>{formatCurrency(stats.thisYear)}</Text>
-                  <Text style={styles.statLabel}>{t('history.thisYear')}</Text>
-                </Card>
-              </View>
-
-            </>
-          )}
-          ListEmptyComponent={() => (
-            <Card style={styles.emptyState}>
-              <Text style={styles.emptyStateTitle}>{t('history.noRecords')}</Text>
-              <Text style={styles.emptyStateText}>
-                {t('history.noRecordsText')}
-              </Text>
-              <Button
-                title={t('history.addRecord')}
-                onPress={handleAddRecord}
-                style={styles.addRecordButton}
-                size="small"
-              />
-            </Card>
-          )}
-          ListFooterComponent={() => (
-            loadingMore ? (
-              <View style={styles.loadingMore}>
-                <LoadingSpinner />
-                <Text style={styles.loadingMoreText}>{t('common.loading')}</Text>
-              </View>
-            ) : !hasMore && history.length > 0 ? (
-              <View style={styles.noMoreData}>
-                <Text style={styles.noMoreDataText}>{t('history.noMoreRecords')}</Text>
-              </View>
-            ) : null
-          )}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent}
-        />
+            )}
+            ListFooterComponent={() =>
+              loadingMore ? (
+                <View style={styles.loadingMore}>
+                  <LoadingSpinner />
+                  <Text style={styles.loadingMoreText}>{t('common.loading')}</Text>
+                </View>
+              ) : !hasMore && history.length > 0 ? (
+                <View style={styles.noMoreData}>
+                  <Text style={styles.noMoreDataText}>{t('history.noMoreRecords')}</Text>
+                </View>
+              ) : null
+            }
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          />
       </KeyboardAvoidingView>
 
       <ExpenseModal
@@ -624,126 +760,150 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
         editingRecord={editingRecord}
         vehicles={vehicles}
         expenseTypes={expenseTypes}
-        initialVehicleId={selectedVehicle}
+        initialVehicleId={modalVehicleId}
         userCurrency={userCurrency}
         isPro={isPro}
       />
 
-      {/* Record View Modal */}
+      {/* Record View Modal — стиль design-new: шапка как PageHeader, панель surface rounded-2xl */}
       <Modal
         visible={!!viewingRecord}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setViewingRecord(null)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity 
-              onPress={() => setViewingRecord(null)}
-              style={styles.iconOnlyButton}
-            >
-              <Icon name="close" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>{t('history.title')}</Text>
-            <View style={{ width: 40 }} />
-          </View>
-          
-          {viewingRecord && (
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              <Card style={styles.viewRecordCard}>
-                <View style={styles.viewRecordSection}>
-                  <Text style={styles.viewRecordLabel}>{t('history.description')}</Text>
-                  <Text style={styles.viewRecordValue}>{viewingRecord.description || t('history.noRecordsText')}</Text>
-                </View>
-
-                <View style={styles.viewRecordSection}>
-                  <Text style={styles.viewRecordLabel}>{t('history.vehicle')}</Text>
-                  <Text style={styles.viewRecordValue}>
-                    {vehicles.find(v => v.id === viewingRecord.vehicle_id) 
-                      ? `${vehicles.find(v => v.id === viewingRecord.vehicle_id)?.year} ${vehicles.find(v => v.id === viewingRecord.vehicle_id)?.make} ${vehicles.find(v => v.id === viewingRecord.vehicle_id)?.model}`
-                      : t('history.unknownVehicle')}
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right']}>
+          {viewingRecord ? (
+            <>
+              <View style={styles.detailModalHeader}>
+                <View style={styles.detailModalHeaderText}>
+                  <Text style={styles.detailModalEyebrow}>{t('history.journalEyebrow')}</Text>
+                  <Text style={styles.detailModalHeadline} numberOfLines={3}>
+                    {(viewingRecord.description || '').trim() ||
+                      expenseTypes.find((et) => et.id === viewingRecord.expense_type_id)?.name ||
+                      t('history.detailTitle')}
                   </Text>
                 </View>
+                <TouchableOpacity
+                  onPress={() => setViewingRecord(null)}
+                  style={styles.detailModalClose}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close') || 'Close'}
+                >
+                  <Icon name="close" size={22} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-                <View style={styles.viewRecordSection}>
-                  <Text style={styles.viewRecordLabel}>{t('history.recordType')}</Text>
-                  <Text style={styles.viewRecordValue}>
-                    {expenseTypes.find(et => et.id === viewingRecord.expense_type_id)?.name || t('history.other')}
-                  </Text>
-                </View>
+              <ScrollView
+                style={styles.modalContent}
+                contentContainerStyle={styles.detailScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {(() => {
+                  const typeName =
+                    expenseTypes.find((et) => et.id === viewingRecord.expense_type_id)?.name ||
+                    t('history.other');
+                  const v = vehicles.find((x) => x.id === viewingRecord.vehicle_id);
+                  const vehicleLine = v
+                    ? `${v.year} ${v.make} ${v.model}`
+                    : t('history.unknownVehicle');
 
-                <View style={styles.viewRecordSection}>
-                  <Text style={styles.viewRecordLabel}>{t('history.serviceDate')}</Text>
-                  <Text style={styles.viewRecordValue}>{formatDate(viewingRecord.service_date)}</Text>
-                </View>
+                  return (
+                    <>
+                      <View style={styles.detailSheetPanel}>
+                        <View style={styles.detailHero}>
+                          <Text style={styles.detailHeroLabel}>{t('history.cost')}</Text>
+                          <Text style={styles.detailHeroAmount}>
+                            {formatCurrency(viewingRecord.cost)}
+                          </Text>
+                          <Text style={styles.detailHeroMeta}>
+                            {typeName} · {formatDate(viewingRecord.service_date)}
+                          </Text>
+                        </View>
 
-                <View style={styles.viewRecordSection}>
-                  <Text style={styles.viewRecordLabel}>{t('history.cost')}</Text>
-                  <Text style={[styles.viewRecordValue, styles.viewRecordCost]}>
-                    {formatCurrency(viewingRecord.cost)}
-                  </Text>
-                </View>
+                        <View style={styles.detailDivider} />
 
-                {(viewingRecord as any).receipt_photo && (
-                  <View style={styles.viewRecordSection}>
-                    <Text style={styles.viewRecordLabel}>{t('expenseModal.receiptPhoto')}</Text>
-                    {loadingReceiptPhoto ? (
-                      <View style={styles.receiptPhotoLoading}>
-                        <ActivityIndicator size="small" color={COLORS.accent} />
-                        <Text style={styles.receiptPhotoLoadingText}>
-                          {t('common.loading') || 'Загрузка...'}
-                        </Text>
+                        <View style={styles.detailField}>
+                          <Text style={styles.detailFieldLabel}>{t('history.description')}</Text>
+                          <Text style={styles.detailFieldValue}>
+                            {(viewingRecord.description || '').trim() || '—'}
+                          </Text>
+                        </View>
+
+                        <View style={styles.detailField}>
+                          <Text style={styles.detailFieldLabel}>{t('history.vehicle')}</Text>
+                          <Text style={styles.detailFieldValue}>{vehicleLine}</Text>
+                        </View>
+
+                        {(viewingRecord as any).receipt_photo ? (
+                          <View style={[styles.detailField, styles.detailFieldReceipt]}>
+                            <Text style={styles.detailFieldLabel}>{t('expenseModal.receiptPhoto')}</Text>
+                            {loadingReceiptPhoto ? (
+                              <View style={styles.receiptPhotoLoading}>
+                                <ActivityIndicator size="small" color={COLORS.accent} />
+                                <Text style={styles.receiptPhotoLoadingText}>
+                                  {t('common.loading') || 'Загрузка...'}
+                                </Text>
+                              </View>
+                            ) : receiptPhotoUrl ? (
+                              <Image
+                                source={{ uri: receiptPhotoUrl }}
+                                style={styles.viewRecordImage}
+                                resizeMode="contain"
+                                onError={() => {
+                                  console.error('Failed to load receipt photo:', receiptPhotoUrl);
+                                  setReceiptPhotoUrl(null);
+                                }}
+                              />
+                            ) : (
+                              <View style={styles.receiptPhotoError}>
+                                <Icon name="alert-circle" size={22} color={COLORS.textMuted} />
+                                <Text style={styles.receiptPhotoErrorText}>
+                                  {t('expenseModal.photoLoadError') || 'Не удалось загрузить фото'}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        ) : null}
                       </View>
-                    ) : receiptPhotoUrl ? (
-                      <Image 
-                        source={{ uri: receiptPhotoUrl }} 
-                        style={styles.viewRecordImage}
-                        resizeMode="contain"
-                        onError={() => {
-                          console.error('Failed to load receipt photo:', receiptPhotoUrl);
-                          setReceiptPhotoUrl(null);
-                        }}
-                      />
-                    ) : (
-                      <View style={styles.receiptPhotoError}>
-                        <Icon name="alert-circle" size={24} color={COLORS.textMuted} />
-                        <Text style={styles.receiptPhotoErrorText}>
-                          {t('expenseModal.photoLoadError') || 'Не удалось загрузить фото'}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
 
-                <View style={styles.modalActionsBottom}>
-                  <Button
-                    title={t('common.edit')}
-                    onPress={() => {
-                      setViewingRecord(null);
-                      handleEditRecord(viewingRecord);
-                    }}
-                    style={styles.modalEditButton}
-                  />
-                  <Button
-                    title={t('common.delete')}
-                    onPress={() => {
-                      setViewingRecord(null);
-                      handleDeleteRecord(viewingRecord.id);
-                    }}
-                    variant="outline"
-                    style={styles.modalDeleteButton}
-                  />
-                </View>
-              </Card>
-            </ScrollView>
-          )}
+                      <View style={styles.modalActionsBottom}>
+                        <Button
+                          title={t('common.edit')}
+                          onPress={() => {
+                            setViewingRecord(null);
+                            handleEditRecord(viewingRecord);
+                          }}
+                          variant="secondary"
+                          icon="edit"
+                          style={styles.modalEditButton}
+                        />
+                        <Button
+                          title={t('common.delete')}
+                          onPress={() => {
+                            setViewingRecord(null);
+                            handleDeleteRecord(viewingRecord.id);
+                          }}
+                          variant="destructive"
+                          icon="delete"
+                          style={styles.modalDeleteButton}
+                        />
+                      </View>
+                    </>
+                  );
+                })()}
+              </ScrollView>
+            </>
+          ) : null}
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
+function createHistoryScreenStyles() {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -755,6 +915,7 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
   scrollView: {
     flex: 1,
@@ -919,45 +1080,157 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  modalHeader: {
+  detailModalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  modalHeaderCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+  detailModalHeaderText: {
+    flex: 1,
+    paddingRight: SPACING.md,
+    minWidth: 0,
   },
-  iconOnlyButton: {
-    padding: SPACING.sm,
+  detailModalEyebrow: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: COLORS.textMuted,
+    marginBottom: 6,
   },
-  modalCancelText: {
-    color: COLORS.textSecondary,
-    fontSize: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  detailModalHeadline: {
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    lineHeight: 26,
     color: COLORS.text,
   },
-  modalSaveText: {
-    color: COLORS.accent,
-    fontSize: 16,
-    fontWeight: '500',
+  detailModalClose: {
+    padding: SPACING.xs,
+    marginTop: 2,
+    borderRadius: RADIUS.sm,
   },
   modalContent: {
     flex: 1,
   },
-  modalActionsBottom: {
+  detailScrollContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xxl,
+  },
+  detailSheetPanel: {
+    borderRadius: RADIUS.sheet,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    padding: SPACING.lg,
+  },
+  detailHero: {
+    marginBottom: SPACING.xs,
+  },
+  detailHeroLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: COLORS.textMuted,
+    marginBottom: SPACING.xs,
+  },
+  detailHeroAmount: {
+    fontFamily: FONTS.bold,
+    fontSize: 30,
+    letterSpacing: -0.6,
+    color: COLORS.text,
+  },
+  detailHeroMeta: {
+    marginTop: SPACING.sm,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  detailDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.md,
+  },
+  detailField: {
+    marginBottom: SPACING.md,
+  },
+  detailFieldReceipt: {
+    marginBottom: 0,
+  },
+  detailFieldLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: COLORS.textMuted,
+    marginBottom: 6,
+  },
+  detailFieldValue: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    lineHeight: 22,
+    color: COLORS.text,
+  },
+  viewRecordImage: {
+    width: '100%',
+    height: 280,
+    borderRadius: RADIUS.lg,
+    marginTop: SPACING.sm,
+    backgroundColor: hexToRgba(COLORS.text, 0.04),
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  receiptPhotoLoading: {
     flexDirection: 'row',
-    marginTop: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    marginTop: SPACING.sm,
+    backgroundColor: hexToRgba(COLORS.text, 0.04),
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  receiptPhotoLoadingText: {
+    marginLeft: SPACING.sm,
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+  },
+  receiptPhotoError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    marginTop: SPACING.sm,
+    backgroundColor: hexToRgba(COLORS.text, 0.04),
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  receiptPhotoErrorText: {
+    marginLeft: SPACING.sm,
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textMuted,
+  },
+  modalActionsBottom: {
+    marginTop: SPACING.lg,
+    gap: SPACING.md,
+  },
+  modalEditButton: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
+  modalDeleteButton: {
+    alignSelf: 'stretch',
+    width: '100%',
   },
   typeSelector: {
     marginBottom: SPACING.lg,
@@ -1040,75 +1313,7 @@ const styles = StyleSheet.create({
   modalKeyboardAvoidingView: {
     flex: 1,
   },
-  viewRecordCard: {
-    margin: SPACING.sm,
-    marginHorizontal: SPACING.md,
-  },
-  viewRecordSection: {
-    marginBottom: SPACING.lg,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  viewRecordLabel: {
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.xs,
-    textTransform: 'uppercase',
-  },
-  viewRecordValue: {
-    fontSize: 16,
-    fontFamily: FONTS.regular,
-    color: COLORS.text,
-    lineHeight: 24,
-  },
-  viewRecordCost: {
-    fontSize: 24,
-    fontFamily: FONTS.bold,
-    color: COLORS.accent,
-  },
-  viewRecordImage: {
-    width: '100%',
-    height: 300,
-    borderRadius: 8,
-    marginTop: SPACING.sm,
-    backgroundColor: COLORS.background,
-  },
-  receiptPhotoLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.lg,
-    marginTop: SPACING.sm,
-  },
-  receiptPhotoLoadingText: {
-    marginLeft: SPACING.sm,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  receiptPhotoError: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.lg,
-    marginTop: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-  },
-  receiptPhotoErrorText: {
-    marginLeft: SPACING.sm,
-    fontSize: 14,
-    color: COLORS.textMuted,
-  },
-  modalEditButton: {
-    flex: 1,
-    marginRight: SPACING.sm,
-  },
-  modalDeleteButton: {
-    flex: 1,
-    marginLeft: SPACING.sm,
-  },
-});
+  });
+}
 
 export default HistoryScreen;

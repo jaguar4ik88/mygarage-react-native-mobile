@@ -6,10 +6,19 @@ import { AuthResponse, User, Vehicle, Reminder, ServiceStation, ServiceHistory, 
 import OfflineService from './offlineService';
 import CrashlyticsService from './crashlyticsService';
 
+/**
+ * Подробные логи каждого HTTP-запроса (guest check, тип эндпоинта, URL, заголовки).
+ * По умолчанию выкл.: включите локально или задайте EXPO_PUBLIC_DEBUG_API=1 в .env
+ */
+const API_VERBOSE_LOGS =
+  __DEV__ && String(process.env.EXPO_PUBLIC_DEBUG_API || '').trim() === '1';
+
 class ApiService {
   private baseURL: string;
   private token: string | null = null;
   private static readonly DICT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+  /** Один сетевой GET на URL, пока первый запрос в полёте (убирает дубли при параллельных вызовах). */
+  private inflightGetByUrl = new Map<string, Promise<unknown>>();
   
   // Список эндпоинтов, которые требуют авторизацию
   private readonly PROTECTED_ENDPOINTS = [
@@ -63,7 +72,9 @@ class ApiService {
   private async loadToken(): Promise<void> {
     try {
       this.token = await AsyncStorage.getItem('auth_token');
-      console.log('🔑 Loaded token from storage:', this.token ? 'exists' : 'null');
+      if (API_VERBOSE_LOGS) {
+        console.log('🔑 Loaded token from storage:', this.token ? 'exists' : 'null');
+      }
     } catch (error) {
       console.error('Error loading token:', error);
     }
@@ -72,8 +83,10 @@ class ApiService {
   private async isGuestMode(): Promise<boolean> {
     try {
       const guestMode = await AsyncStorage.getItem('guest_mode');
-      const authToken = await AsyncStorage.getItem('auth_token');
-      console.log(`🔐 Auth check: guest_mode="${guestMode}", has_token=${!!authToken}`);
+      if (API_VERBOSE_LOGS) {
+        const authToken = await AsyncStorage.getItem('auth_token');
+        console.log(`🔐 Auth check: guest_mode="${guestMode}", has_token=${!!authToken}`);
+      }
       return guestMode === 'true';
     } catch (error) {
       console.error('Error checking guest mode:', error);
@@ -87,11 +100,13 @@ class ApiService {
     
     const isProtected = this.PROTECTED_ENDPOINTS.some(protected_ep => {
       // Проверяем что endpoint начинается с защищенного пути или точно совпадает
-      return cleanEndpoint === protected_ep || 
+      return cleanEndpoint === protected_ep ||
              cleanEndpoint.startsWith(protected_ep + '/');
     });
-    
-    console.log(`🛡️ Endpoint check: "${cleanEndpoint}" -> ${isProtected ? 'PROTECTED' : 'PUBLIC'}`);
+
+    if (API_VERBOSE_LOGS) {
+      console.log(`🛡️ Endpoint check: "${cleanEndpoint}" -> ${isProtected ? 'PROTECTED' : 'PUBLIC'}`);
+    }
     return isProtected;
   }
 
@@ -107,8 +122,10 @@ class ApiService {
 
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
-      console.log('🔐 Sending auth token for request');
-    } else {
+      if (API_VERBOSE_LOGS) {
+        console.log('🔐 Sending auth token for request');
+      }
+    } else if (API_VERBOSE_LOGS) {
       console.log('🔓 No auth token for request');
     }
 
@@ -122,11 +139,15 @@ class ApiService {
     // Проверка на гостевой режим для защищенных эндпоинтов
     const isGuest = await this.isGuestMode();
     const isProtected = this.isProtectedEndpoint(endpoint);
-    
-    console.log(`🔍 API Check: endpoint="${endpoint}", isGuest=${isGuest}, isProtected=${isProtected}`);
-    
+
+    if (API_VERBOSE_LOGS) {
+      console.log(`🔍 API Check: endpoint="${endpoint}", isGuest=${isGuest}, isProtected=${isProtected}`);
+    }
+
     if (isGuest && isProtected) {
-      console.log(`👤 Guest mode: Skipping API request to protected endpoint: ${endpoint}`);
+      if (API_VERBOSE_LOGS) {
+        console.log(`👤 Guest mode: Skipping API request to protected endpoint: ${endpoint}`);
+      }
       // Возвращаем пустой успешный ответ для гостей
       return {
         data: (Array.isArray([]) ? [] : {}) as T,
@@ -136,170 +157,190 @@ class ApiService {
     }
 
     const url = `${this.baseURL}${endpoint}`;
-    const headers = await this.getHeaders();
-    // Ensure auth endpoints never send stale Authorization header
-    if (endpoint.includes('/auth/login') || endpoint.includes('/auth/register')) {
-      if ('Authorization' in headers) {
-        delete (headers as any)['Authorization'];
-      }
-    }
-    const REQUEST_TIMEOUT_MS = 15000; // Increased timeout to 15 seconds
+    const httpMethod = String(options.method || 'GET').toUpperCase();
 
-    // Log all API requests with detailed info
-    console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
-    try {
-      const headersToLog: Record<string, any> = { ...headers } as any;
-      // Mask sensitive headers
-      if (headersToLog['X-API-Key']) {
-        const val = String(headersToLog['X-API-Key']);
-        headersToLog['X-API-Key'] = `${val.slice(0, 4)}…(${val.length})`;
+    const run = async (): Promise<ApiResponse<T>> => {
+      const headers = await this.getHeaders();
+      // Ensure auth endpoints never send stale Authorization header
+      if (endpoint.includes('/auth/login') || endpoint.includes('/auth/register')) {
+        if ('Authorization' in headers) {
+          delete (headers as any)['Authorization'];
+        }
       }
-      if (headersToLog['Authorization']) {
-        const val = String(headersToLog['Authorization']);
-        // Mask Bearer token: show only first 10 chars and last 4
-        if (val.startsWith('Bearer ')) {
-          const token = val.substring(7);
-          if (token.length > 14) {
-            headersToLog['Authorization'] = `Bearer ${token.slice(0, 3)}…${token.slice(-4)}(${token.length})`;
-          } else {
-            headersToLog['Authorization'] = 'Bearer ***';
+      const REQUEST_TIMEOUT_MS = 15000; // Increased timeout to 15 seconds
+
+      // Log requests only in verbose diagnostics mode
+      if (API_VERBOSE_LOGS) {
+        console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
+        try {
+          const headersToLog: Record<string, any> = { ...headers } as any;
+          // Mask sensitive headers
+          if (headersToLog['X-API-Key']) {
+            const val = String(headersToLog['X-API-Key']);
+            headersToLog['X-API-Key'] = `${val.slice(0, 4)}…(${val.length})`;
           }
-        } else {
-          headersToLog['Authorization'] = '***';
-        }
-      }
-      console.log('📋 Request headers (masked):', headersToLog);
-    } catch {
-      console.log('📋 Request headers: <unavailable>');
-    }
-    console.log('🔧 Base URL:', this.baseURL);
-    console.log('📱 Platform:', Platform.OS);
-
-    try {
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
-
-      // Extra diagnostics for auth endpoints (mask sensitive fields)
-      try {
-        if (endpoint.includes('/auth/login')) {
-          const b = (options?.body ? JSON.parse(String(options.body)) : {}) as any;
-          const maskedBody = {
-            email: b?.email ?? '<undefined>',
-            password: b.password
-          };
-          console.log('🧾 Login payload (masked):', maskedBody);
-        }
-      } catch {}
-
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...headers,
-          ...options.headers,
-        },
-        signal: abortController.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // Handle authentication errors
-      if (response.status === 401) {
-        console.log('🔐 Authentication failed, clearing token');
-        await this.removeToken();
-        throw new Error('Authentication failed. Please login again.');
-      }
-
-      // Проверяем Content-Type перед парсингом JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response received:', {
-          status: response.status,
-          contentType,
-          url,
-          response: text.substring(0, 200) + (text.length > 200 ? '...' : '')
-        });
-        throw new Error(`Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}...`);
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Check if this is a subscription limit error (not a real error, just business logic)
-        const isSubscriptionLimit = response.status === 403 && (data.upgrade_required || data.limit_reached);
-        
-        if (!isSubscriptionLimit) {
-          // Only log non-subscription errors
-          try {
-            const text = await response.clone().text();
-            console.error('❗ Response body (first 300 chars):', text.slice(0, 300));
-          } catch {}
-          console.error('Request failed with status:', response.status);
-          console.error('Error data:', data);
-        } else {
-          // Subscription limits are expected, just log minimally
-          console.log('🔒 Subscription limit reached:', data.message);
-        }
-        
-        // Handle validation errors (422) with detailed error messages
-        if (response.status === 422 && data.errors) {
-          const errorMessages = [];
-          for (const [field, messages] of Object.entries(data.errors)) {
-            if (Array.isArray(messages)) {
-              errorMessages.push(`${field}: ${messages.join(', ')}`);
+          if (headersToLog['Authorization']) {
+            const val = String(headersToLog['Authorization']);
+            // Mask Bearer token: show only first 10 chars and last 4
+            if (val.startsWith('Bearer ')) {
+              const token = val.substring(7);
+              if (token.length > 14) {
+                headersToLog['Authorization'] = `Bearer ${token.slice(0, 3)}…${token.slice(-4)}(${token.length})`;
+              } else {
+                headersToLog['Authorization'] = 'Bearer ***';
+              }
             } else {
-              errorMessages.push(`${field}: ${messages}`);
+              headersToLog['Authorization'] = '***';
             }
           }
-          const error: any = new Error(errorMessages.join('\n'));
-          // Preserve all data properties
+          console.log('📋 Request headers (masked):', headersToLog);
+        } catch {
+          console.log('📋 Request headers: <unavailable>');
+        }
+        console.log('🔧 Base URL:', this.baseURL);
+        console.log('📱 Platform:', Platform.OS);
+      }
+
+      try {
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
+
+        // Extra diagnostics for auth endpoints (mask sensitive fields)
+        try {
+          if (API_VERBOSE_LOGS && endpoint.includes('/auth/login')) {
+            const b = (options?.body ? JSON.parse(String(options.body)) : {}) as any;
+            const maskedBody = {
+              email: b?.email ?? '<undefined>',
+              password: b.password ? '***' : undefined,
+            };
+            console.log('🧾 Login payload (masked):', maskedBody);
+          }
+        } catch {}
+
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            ...headers,
+            ...options.headers,
+          },
+          signal: abortController.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Handle authentication errors
+        if (response.status === 401) {
+          console.warn('[API] 401 — clearing session token');
+          await this.removeToken();
+          throw new Error('Authentication failed. Please login again.');
+        }
+
+        // Проверяем Content-Type перед парсингом JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Non-JSON response received:', {
+            status: response.status,
+            contentType,
+            url,
+            response: text.substring(0, 200) + (text.length > 200 ? '...' : '')
+          });
+          throw new Error(`Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}...`);
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          // Check if this is a subscription limit error (not a real error, just business logic)
+          const isSubscriptionLimit = response.status === 403 && (data.upgrade_required || data.limit_reached);
+          
+          if (!isSubscriptionLimit) {
+            // Only log non-subscription errors
+            try {
+              const text = await response.clone().text();
+              console.error('❗ Response body (first 300 chars):', text.slice(0, 300));
+            } catch {}
+            console.error('Request failed with status:', response.status);
+            console.error('Error data:', data);
+          } else {
+            // Subscription limits are expected, just log minimally
+            console.log('🔒 Subscription limit reached:', data.message);
+          }
+          
+          // Handle validation errors (422) with detailed error messages
+          if (response.status === 422 && data.errors) {
+            const errorMessages = [];
+            for (const [field, messages] of Object.entries(data.errors)) {
+              if (Array.isArray(messages)) {
+                errorMessages.push(`${field}: ${messages.join(', ')}`);
+              } else {
+                errorMessages.push(`${field}: ${messages}`);
+              }
+            }
+            const error: any = new Error(errorMessages.join('\n'));
+            // Preserve all data properties
+            Object.assign(error, data);
+            throw error;
+          }
+          
+          // Preserve all error data properties (upgrade_required, limit_reached, etc.)
+          const error: any = new Error(data.message || `Request failed with status ${response.status}`);
           Object.assign(error, data);
           throw error;
         }
+
+        return data;
+      } catch (error) {
+        // Check if this is a subscription limit error
+        const isSubscriptionLimit = (error as any).upgrade_required || (error as any).limit_reached;
         
-        // Preserve all error data properties (upgrade_required, limit_reached, etc.)
-        const error: any = new Error(data.message || `Request failed with status ${response.status}`);
-        Object.assign(error, data);
+        if (!isSubscriptionLimit) {
+          // Only log real errors, not subscription limits
+          console.error('❌ API request failed:', error);
+          console.error('📱 Platform:', Platform.OS);
+          console.error('🔗 URL:', url);
+          console.error('📋 Headers:', headers);
+          console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
+          
+          // Log to Crashlytics (skip subscription errors)
+          try {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await CrashlyticsService.logApiError(
+              endpoint,
+              0, // status code unknown for network errors
+              errorMessage
+            );
+          } catch (crashError) {
+            console.error('Failed to log API error to Crashlytics:', crashError);
+          }
+        }
+        
+        // Notify UI to show graceful banner (skip subscription errors)
+        if (!isSubscriptionLimit) {
+          eventBus.emit(EVENTS.API_ERROR, {
+            url,
+            method: options.method || 'GET',
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        
         throw error;
       }
+    };
 
-      return data;
-    } catch (error) {
-      // Check if this is a subscription limit error
-      const isSubscriptionLimit = (error as any).upgrade_required || (error as any).limit_reached;
-      
-      if (!isSubscriptionLimit) {
-        // Only log real errors, not subscription limits
-        console.error('❌ API request failed:', error);
-        console.error('📱 Platform:', Platform.OS);
-        console.error('🔗 URL:', url);
-        console.error('📋 Headers:', headers);
-        console.error('⏰ Timeout:', REQUEST_TIMEOUT_MS + 'ms');
-        
-        // Log to Crashlytics (skip subscription errors)
-        try {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          await CrashlyticsService.logApiError(
-            endpoint,
-            0, // status code unknown for network errors
-            errorMessage
-          );
-        } catch (crashError) {
-          console.error('Failed to log API error to Crashlytics:', crashError);
-        }
+    if (httpMethod === 'GET') {
+      const existing = this.inflightGetByUrl.get(url);
+      if (existing) {
+        return existing as Promise<ApiResponse<T>>;
       }
-      
-      // Notify UI to show graceful banner (skip subscription errors)
-      if (!isSubscriptionLimit) {
-        eventBus.emit(EVENTS.API_ERROR, {
-          url,
-          method: options.method || 'GET',
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-      
-      throw error;
+      const pending = run().finally(() => {
+        this.inflightGetByUrl.delete(url);
+      });
+      this.inflightGetByUrl.set(url, pending);
+      return pending as Promise<ApiResponse<T>>;
     }
+
+    return run();
   }
 
   // Simple cache helpers for reference data (dictionaries)
@@ -575,8 +616,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      // Fire-and-forget background refresh
-      this.request<any[]>(`/advice-sections?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached;
     }
 
@@ -863,7 +902,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      this.request<any[]>(`/reminder-types?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached;
     }
 
@@ -884,7 +922,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      this.request<any[]>(`/manual-sections?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached;
     }
 
@@ -905,7 +942,6 @@ class ApiService {
     const isFresh = savedAt ? (Date.now() - savedAt) < ApiService.DICT_TTL_MS : false;
 
     if (cached && isFresh) {
-      this.request<any[]>(`/expense-types?locale=${locale}`).then(r => this.setCachedDict(cacheKey, r.data)).catch(() => {});
       return cached as any;
     }
 
@@ -964,9 +1000,17 @@ class ApiService {
     receipt_data?: string;
     subscription_type: string;
   }): Promise<any> {
+    // Пустые optional поля обязательны в JSON ключами: Laravel + JSON.stringify режет undefined
+    const payload = {
+      platform: data.platform,
+      transaction_id: data.transaction_id,
+      subscription_type: data.subscription_type,
+      original_transaction_id: data.original_transaction_id ?? '',
+      receipt_data: data.receipt_data ?? '',
+    };
     const response = await this.request<any>('/user/subscription/verify', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return response;
   }

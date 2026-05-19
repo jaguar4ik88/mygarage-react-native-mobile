@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import ScreenBackLink from '../components/ScreenBackLink';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -158,14 +159,11 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Back Button */}
-          <TouchableOpacity
-            style={styles.backButton}
+          <ScreenBackLink
             onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backButtonText}>← {t('forgotPassword.backToLogin')}</Text>
-          </TouchableOpacity>
+            label={t('forgotPassword.backToLogin')}
+            uppercase={false}
+          />
 
           <View style={styles.header}>
             <Text style={styles.logo}>myGarage</Text>
@@ -247,9 +245,10 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
 
             <TouchableOpacity
               onPress={handleBackToLogin}
-              style={styles.backButton}
+              style={styles.footerBackLink}
+              activeOpacity={0.7}
             >
-              <Text style={styles.backButtonText}>
+              <Text style={styles.footerBackLinkText}>
                 {t('forgotPassword.backToLogin')}
               </Text>
             </TouchableOpacity>
@@ -267,17 +266,6 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
-  },
-  backButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    marginTop: SPACING.sm,
-    alignSelf: 'flex-start',
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: COLORS.accent,
-    fontWeight: '500',
   },
   scrollContent: {
     flexGrow: 1,
@@ -312,15 +300,15 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: SPACING.lg,
   },
-  backButton: {
+  footerBackLink: {
     marginTop: SPACING.md,
     alignItems: 'center',
     padding: SPACING.md,
   },
-  backButtonText: {
+  footerBackLinkText: {
     fontSize: 16,
+    fontFamily: FONTS.semiBold,
     color: COLORS.accent,
-    fontWeight: '600',
   },
 });
 

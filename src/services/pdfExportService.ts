@@ -13,11 +13,20 @@ interface PdfExportOptions {
   currency: string;
   language: string;
   t?: (key: string) => string;
+  /** Localized period label shown in PDF header (e.g. month/year or "All time"). */
+  periodLabel?: string;
 }
 
 class PdfExportService {
   generateHtmlTemplate(options: PdfExportOptions): string {
-    const { history, vehicles, expenseTypes = [], stats, currency, language, t } = options;
+    const { history, vehicles, expenseTypes = [], stats, currency, language, t, periodLabel } = options;
+
+    const escapeHtml = (raw: string) =>
+      raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     
     const formatDate = (dateString: string): string => {
       const date = new Date(dateString);
@@ -66,6 +75,7 @@ class PdfExportService {
       const fallback: Record<string, Record<string, string>> = {
         uk: {
           title: "Звіт по витратах (Expenses Report)",
+          period: "Період",
           generatedOn: "Дата формування",
           totalRecords: "Всього записів",
           totalSpent: "Всього витрачено",
@@ -81,6 +91,7 @@ class PdfExportService {
         },
         en: {
           title: "Expenses Report",
+          period: "Period",
           generatedOn: "Generated on",
           totalRecords: "Total records",
           totalSpent: "Total spent",
@@ -96,6 +107,7 @@ class PdfExportService {
         },
         ru: {
           title: "Отчет по расходам (Expenses Report)",
+          period: "Период",
           generatedOn: "Дата формирования",
           totalRecords: "Всего записей",
           totalSpent: "Всего потрачено",
@@ -202,6 +214,7 @@ class PdfExportService {
           <div class="header">
             <h1>${getTranslation('title')}</h1>
             <p>${getTranslation('generatedOn')}: ${formatDate(new Date().toISOString())}</p>
+            ${periodLabel ? `<p>${getTranslation('period')}: ${escapeHtml(periodLabel)}</p>` : ''}
             <p>${getTranslation('totalRecords')}: ${history.length}</p>
           </div>
           

@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { COLORS } from '../constants';
+import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import LoginPromptModal from '../components/LoginPromptModal';
-import Paywall from '../components/Paywall';
 import ApiService from '../services/api';
 
 // Screens
@@ -24,9 +24,16 @@ import RemindersScreen from '../screens/RemindersScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import RecommendationsScreen from '../screens/RecommendationsScreen';
 import ExportScreen from '../screens/ExportScreen';
+import ReportsScreen from '../screens/ReportsScreen';
 
 // Navigation
 import BottomTabNavigator from './BottomTabNavigator';
+import {
+  createAppNavigationTheme,
+  stackHeaderTitleStyle,
+  stackHeaderTintColor,
+} from './navigationTheme';
+import { stackHeaderLeftOptions } from './stackHeaderLeft';
 
 // Types
 import { RootStackParamList } from '../types';
@@ -45,12 +52,13 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
   setShowLoginPrompt,
 }) => {
   const { t } = useLanguage();
+  const { appearanceKey, isDark } = useTheme();
   const { isAuthenticated, isGuest, isLoading, logout, user, refreshUser } = useAuth();
   const [currentVehicleId, setCurrentVehicleId] = useState<number | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [paywallSubscriptionType, setPaywallSubscriptionType] = useState<'pro' | 'premium'>('pro');
   const navigationRef = useRef<any>(null);
+
+  const navigationTheme = useMemo(() => createAppNavigationTheme(isDark), [appearanceKey, isDark]);
 
   useEffect(() => {
     loadCurrentVehicle();
@@ -171,26 +179,47 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
       // FREE план - максимум 1 машина
       if (planType === 'free' && vehicleCount >= 1) {
         console.log('🚫 Vehicle limit reached for free plan');
-        setPaywallSubscriptionType('pro');
-        setShowPaywall(true);
+        Alert.alert(
+          t('subscription.proFeature'),
+          t('subscription.vehicleLimitFreeMessage'),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('subscription.upgrade'),
+              onPress: () => {
+                navigationRef.current?.navigate('Subscription');
+              },
+            },
+          ]
+        );
         return;
       }
-      
+
       // PRO план - максимум 3 машины, предлагаем Premium
       if (planType === 'pro' && vehicleCount >= 3) {
         console.log('🚫 Vehicle limit reached for pro plan, showing premium paywall');
-        setPaywallSubscriptionType('premium');
-        setShowPaywall(true);
+        Alert.alert(
+          t('subscription.proFeature'),
+          t('subscription.vehicleLimitProMessage'),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('subscription.upgrade'),
+              onPress: () => {
+                navigationRef.current?.navigate('Subscription');
+              },
+            },
+          ]
+        );
         return;
       }
-      
+
       // PREMIUM план - безлимит (но технически тоже максимум 3 по текущей конфигурации)
       if (planType === 'premium' && vehicleCount >= 3) {
         console.log('🚫 Vehicle limit reached for premium plan');
-        // Для Premium можно показать сообщение о том, что лимит достигнут
         Alert.alert(
-          t('common.information') || 'Информация',
-          t('addCar.maxVehiclesReached') || 'Достигнут максимальный лимит автомобилей для вашей подписки'
+          t('subscription.proFeature'),
+          t('subscription.vehicleLimitPremiumMessage')
         );
         return;
       }
@@ -208,13 +237,6 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
     }
   };
 
-  const handleUpgrade = () => {
-    setShowPaywall(false);
-    if (navigationRef.current) {
-      navigationRef.current.navigate('Subscription');
-    }
-  };
-
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -223,6 +245,7 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
     <>
       <NavigationContainer
         ref={navigationRef}
+        theme={navigationTheme}
         onStateChange={async () => {
           try {
             const currentRoute = navigationRef.current?.getCurrentRoute?.();
@@ -241,12 +264,13 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
       >
         <Stack.Navigator
           initialRouteName="Welcome"
-          screenOptions={{
+          screenOptions={(navProps) => ({
             headerStyle: { backgroundColor: COLORS.card },
-            headerTintColor: COLORS.accent,
-            headerTitleStyle: { fontWeight: 'bold', color: COLORS.accent },
+            headerTintColor: stackHeaderTintColor(),
+            headerTitleStyle: stackHeaderTitleStyle(),
             headerTitleAlign: 'center',
-          }}
+            ...stackHeaderLeftOptions(navProps.navigation),
+          })}
         >
           {/* Welcome Screen - всегда доступен */}
           <Stack.Screen 
@@ -299,20 +323,14 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
           <Stack.Screen 
             name="AddCar" 
             options={{ 
-              title: t('addCar.title'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation }) => (
               <AddCarScreen 
                 onCarAdded={handleCarAdded} 
                 onBack={() => navigation.goBack()} 
+                navigation={navigation}
               />
             )}
           </Stack.Screen>
@@ -322,11 +340,8 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
             options={{ 
               title: t('vehicleDetail.title'),
               headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
+              headerTintColor: stackHeaderTintColor(),
+              headerTitleStyle: stackHeaderTitleStyle(),
               headerTitleAlign: 'center',
             }}
           >
@@ -334,24 +349,22 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
               <VehicleDetailScreen 
                 vehicle={route.params?.vehicle}
                 onBack={() => navigation.goBack()}
-                onEditVehicle={(vehicle) => {
-                  // Trigger Home vehicles refresh after editing year/mileage
+                onEditVehicle={(updatedVehicle) => {
                   refreshVehicles();
+                  if (updatedVehicle) {
+                    navigation.setParams({ vehicle: updatedVehicle });
+                  }
                 }}
                 onVehicleDeleted={handleCarDeleted}
                 onNavigateToReminders={(vehicleId) => {
                   navigation.navigate('Reminders');
                 }}
-                onNavigateToManual={() => {
-                  // Switch to Advice tab inside BottomTabNavigator
-                  navigation.navigate('Home', { screen: 'Advice' as never } as never);
+                onNavigateToStatistics={() => {
+                  // Так же как History/Recommendations: пушим в корневой Stack — назад вернёт к деталям авто
+                  navigation.navigate('Reports');
                 }}
                 onNavigateToHistory={(vehicleId) => {
                   navigation.navigate('History');
-                }}
-                onNavigateToSTO={() => {
-                  // Switch to STO tab inside BottomTabNavigator
-                  navigation.navigate('Home', { screen: 'STO' as never } as never);
                 }}
                 onNavigateToRecommendations={() => {
                   navigation.navigate('Recommendations');
@@ -363,11 +376,10 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
 
           <Stack.Screen 
             name="VehicleDocuments" 
-            options={({ route }) => ({
-              title: t('documents.title'),
-              headerShown: true,
+            options={{
+              headerShown: false,
               presentation: 'card',
-            })}
+            }}
           >
             {({ navigation, route }) => (
               <VehicleDocumentsScreen
@@ -383,11 +395,8 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
             options={{ 
               title: t('profile.title'),
               headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
+              headerTintColor: stackHeaderTintColor(),
+              headerTitleStyle: stackHeaderTitleStyle(),
               headerTitleAlign: 'center',
             }}
           >
@@ -420,14 +429,7 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
           <Stack.Screen 
             name="Reminders" 
             options={{ 
-              title: t('navigation.reminders'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation }) => (
@@ -440,11 +442,8 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
             options={{ 
               title: t('navigation.history'),
               headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
+              headerTintColor: stackHeaderTintColor(),
+              headerTitleStyle: stackHeaderTitleStyle(),
               headerTitleAlign: 'center',
             }}
           >
@@ -454,34 +453,29 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
           </Stack.Screen>
 
           <Stack.Screen 
+            name="Reports" 
+            options={{ 
+              headerShown: false,
+            }}
+          >
+            {() => <ReportsScreen />}
+          </Stack.Screen>
+
+          <Stack.Screen 
             name="Recommendations" 
             options={{ 
-              title: t('navigation.recommendations'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation }) => (
-              <RecommendationsScreen />
+              <RecommendationsScreen navigation={navigation} />
             )}
           </Stack.Screen>
 
           <Stack.Screen 
             name="Export" 
             options={{ 
-              title: t('export.title'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: COLORS.accent,
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: 'bold',
-              },
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation }) => (
@@ -499,15 +493,6 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
         onRegister={() => handleLoginPromptAccepted('register')}
       />
 
-      {/* Paywall для ограничений бесплатного плана */}
-      <Paywall
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        onUpgrade={handleUpgrade}
-        feature="unlimited_vehicles"
-        subscriptionType={paywallSubscriptionType}
-        currentPlan={user?.plan_type || 'free'}
-      />
     </>
   );
 };

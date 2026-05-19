@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -7,19 +8,21 @@ import {
   TextStyle,
   ActivityIndicator,
   View,
+  type StyleProp,
 } from 'react-native';
-import { COLORS, FONTS, SPACING } from '../constants';
+import { COLORS, FONTS, SPACING, RADIUS, ACTION_COLORS, hexToRgba } from '../constants';
+import { useTheme } from '../contexts/ThemeContext';
 import Icon from './Icon';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'secondary' | 'outline' | 'destructive';
   size?: 'small' | 'medium' | 'large';
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
   icon?: string;
   iconPosition?: 'left' | 'right';
   borderColorOverride?: string;
@@ -42,13 +45,105 @@ const Button: React.FC<ButtonProps> = ({
   textColorOverride,
   iconColorOverride,
 }) => {
+  const { appearanceKey } = useTheme();
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        button: {
+          borderRadius: RADIUS.button,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'row',
+        },
+        primary: {
+          backgroundColor: COLORS.accent,
+        },
+        secondary: {
+          backgroundColor: COLORS.card,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+        },
+        outline: {
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderColor: COLORS.accent,
+        },
+        destructive: {
+          backgroundColor: hexToRgba(ACTION_COLORS.colorDelete, 0.1),
+          borderWidth: 1,
+          borderColor: hexToRgba(ACTION_COLORS.colorDelete, 0.4),
+        },
+        small: {
+          paddingHorizontal: SPACING.md,
+          paddingVertical: SPACING.sm,
+          minHeight: 36,
+        },
+        medium: {
+          paddingHorizontal: SPACING.lg,
+          paddingVertical: SPACING.md,
+          minHeight: 48,
+        },
+        large: {
+          paddingHorizontal: SPACING.xl,
+          paddingVertical: SPACING.lg,
+          minHeight: 56,
+        },
+        disabled: {
+          opacity: 0.5,
+        },
+        text: {
+          fontWeight: '600',
+          textAlign: 'center',
+        },
+        primaryText: {
+          color: COLORS.background,
+        },
+        secondaryText: {
+          color: COLORS.text,
+        },
+        outlineText: {
+          color: COLORS.accent,
+        },
+        destructiveText: {
+          color: ACTION_COLORS.colorDelete,
+        },
+        smallText: {
+          fontSize: 14,
+        },
+        mediumText: {
+          fontSize: 16,
+        },
+        largeText: {
+          fontSize: 18,
+        },
+        disabledText: {
+          opacity: 0.7,
+        },
+        buttonContent: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        iconLeft: {
+          marginRight: SPACING.xs,
+        },
+        iconRight: {
+          marginLeft: SPACING.xs,
+        },
+      }),
+    [appearanceKey]
+  );
+
   const buttonStyle = [
     styles.button,
     styles[variant],
     styles[size],
     disabled && styles.disabled,
-    // Apply border color override for outline/secondary variants
-    (variant === 'outline' || variant === 'secondary') && borderColorOverride ? { borderColor: borderColorOverride } : undefined,
+    (variant === 'outline' || variant === 'secondary' || variant === 'destructive') &&
+      borderColorOverride
+      ? { borderColor: borderColorOverride }
+      : undefined,
     style,
   ];
 
@@ -65,17 +160,29 @@ const Button: React.FC<ButtonProps> = ({
     if (loading) {
       return (
         <ActivityIndicator
-          color={variant === 'primary' ? COLORS.background : COLORS.accent}
+          color={
+            variant === 'primary'
+              ? COLORS.background
+              : variant === 'destructive'
+                ? ACTION_COLORS.colorDelete
+                : COLORS.accent
+          }
           size="small"
         />
       );
     }
 
     if (icon) {
-      const defaultIconColor = variant === 'primary' ? COLORS.background : COLORS.accent;
-      const iconColor = iconColorOverride || textColorOverride || defaultIconColor;
+      const defaultIconColor =
+        variant === 'primary'
+          ? COLORS.background
+          : variant === 'destructive'
+            ? ACTION_COLORS.colorDelete
+            : COLORS.accent;
+      const iconColor =
+        iconColorOverride || textColorOverride || defaultIconColor;
       const iconSize = size === 'small' ? 16 : size === 'large' ? 20 : 18;
-      
+
       return (
         <View style={styles.buttonContent}>
           {iconPosition === 'left' && (
@@ -103,81 +210,5 @@ const Button: React.FC<ButtonProps> = ({
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  primary: {
-    backgroundColor: COLORS.accent,
-  },
-  secondary: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
-  small: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    minHeight: 36,
-  },
-  medium: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    minHeight: 48,
-  },
-  large: {
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.lg,
-    minHeight: 56,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  text: {
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  primaryText: {
-    color: COLORS.background,
-  },
-  secondaryText: {
-    color: COLORS.text,
-  },
-  outlineText: {
-    color: COLORS.accent,
-  },
-  smallText: {
-    fontSize: 14,
-  },
-  mediumText: {
-    fontSize: 16,
-  },
-  largeText: {
-    fontSize: 18,
-  },
-  disabledText: {
-    opacity: 0.7,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconLeft: {
-    marginRight: SPACING.xs,
-  },
-  iconRight: {
-    marginLeft: SPACING.xs,
-  },
-});
 
 export default Button;

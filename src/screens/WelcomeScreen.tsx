@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ const { width, height } = Dimensions.get('window');
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
   const { t } = useLanguage();
-  const { isDark } = useTheme();
+  const { appearanceKey, isDark } = useTheme();
   const { isAuthenticated, isGuest, continueAsGuest, checkAutoLogin } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
@@ -64,6 +64,85 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
     }
   }, [isAuthenticated, isGuest, isCheckingAuth]);
 
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 32,
+          paddingTop: height * 0.15,
+          paddingBottom: 50,
+        },
+        logoContainer: {
+          alignItems: 'center',
+          flex: 1,
+          justifyContent: 'center',
+        },
+        logoCircle: {
+          width: 120,
+          height: 120,
+          borderRadius: 60,
+          backgroundColor: COLORS.accent + '20',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: 32,
+        },
+        logoImage: {
+          width: 80,
+          height: 80,
+        },
+        title: {
+          fontSize: 32,
+          fontWeight: 'bold',
+          marginBottom: 12,
+          textAlign: 'center',
+        },
+        subtitle: {
+          fontSize: 16,
+          textAlign: 'center',
+          lineHeight: 24,
+          maxWidth: 280,
+        },
+        buttonsContainer: {
+          width: '100%',
+          gap: 16,
+        },
+        primaryButton: {
+          height: 56,
+          borderRadius: 16,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: COLORS.accent,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 5,
+        },
+        primaryButtonText: {
+          fontSize: 18,
+          fontWeight: '600',
+        },
+        guestButton: {
+          paddingVertical: 16,
+          alignItems: 'center',
+        },
+        guestButtonText: {
+          fontSize: 16,
+          fontWeight: '500',
+        },
+        bottomDecoration: {
+          alignItems: 'center',
+          marginTop: 20,
+        },
+        versionText: {
+          fontSize: 12,
+        },
+      }),
+    [appearanceKey]
+  );
+
   const handleAutoLogin = async () => {
     try {
       const autoLoginSuccess = await checkAutoLogin();
@@ -84,11 +163,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
   const handleLogin = () => {
     Analytics.track('welcome_login_tapped');
     navigation.navigate('Auth', { mode: 'login' });
-  };
-
-  const handleRegister = () => {
-    Analytics.track('welcome_register_tapped');
-    navigation.navigate('Auth', { mode: 'register' });
   };
 
   const handleContinueAsGuest = async () => {
@@ -148,24 +222,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
           onPress={handleLogin}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryButtonText}>{t('welcome.login')}</Text>
-        </TouchableOpacity>
-
-        {/* Register Button */}
-        <TouchableOpacity
-          style={[
-            styles.secondaryButton,
-            {
-              borderColor: COLORS.accent,
-              backgroundColor: 'transparent',
-            },
-          ]}
-          onPress={handleRegister}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.secondaryButtonText, { color: COLORS.accent }]}>
-            {t('welcome.register')}
-          </Text>
+          <Text style={[styles.primaryButtonText, { color: COLORS.background }]}>{t('welcome.login')}</Text>
         </TouchableOpacity>
 
         {/* Continue as Guest */}
@@ -189,93 +246,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingTop: height * 0.15,
-    paddingBottom: 50,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.accent + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  logoImage: {
-    width: 80,
-    height: 80,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: 280,
-  },
-  buttonsContainer: {
-    width: '100%',
-    gap: 16,
-  },
-  primaryButton: {
-    height: 56,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    height: 56,
-    borderRadius: 16,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  guestButton: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  guestButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  bottomDecoration: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  versionText: {
-    fontSize: 12,
-  },
-});
 
 export default WelcomeScreen;
 

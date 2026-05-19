@@ -112,6 +112,7 @@ const Icon: React.FC<IconProps> = ({
       'fuel': { component: MaterialIcons, iconName: 'local-gas-station' },
       'laptop': { component: MaterialIcons, iconName: 'laptop' },
       'rocket': { component: MaterialIcons, iconName: 'rocket-launch' },
+      'sparkles': { component: MaterialIcons, iconName: 'auto-awesome' },
       'book': { component: MaterialIcons, iconName: 'book' },
       'hospital': { component: MaterialIcons, iconName: 'local-hospital' },
       'balance': { component: MaterialIcons, iconName: 'balance' },

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from './Icon';
 import { COLORS, FONTS, SPACING } from '../constants';
 import SubscriptionService from '../services/SubscriptionService';
+import { useAuth } from '../contexts/AuthContext';
 import Paywall from './Paywall';
 
 interface FeatureGateProps {
@@ -20,6 +21,7 @@ const FeatureGate: React.FC<FeatureGateProps> = ({
   showPaywall = true,
   onUpgrade
 }) => {
+  const { user } = useAuth();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
 
@@ -90,6 +92,7 @@ const FeatureGate: React.FC<FeatureGateProps> = ({
             handleUpgrade();
           }}
           feature={feature}
+          currentPlan={user?.plan_type || 'free'}
         />
       </>
     );

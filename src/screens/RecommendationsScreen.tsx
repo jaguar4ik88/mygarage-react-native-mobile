@@ -1,35 +1,51 @@
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Card from '../components/Card';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { useNavigation } from '@react-navigation/native';
 import Icon from '../components/Icon';
-import { COLORS, FONTS, SPACING } from '../constants';
+import ScreenBackLink from '../components/ScreenBackLink';
+import { COLORS, FONTS, SPACING, RADIUS, hexToRgba } from '../constants';
 import ApiService from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Vehicle } from '../types';
 
-const RecommendationsScreen: React.FC = () => {
+interface RecommendationsScreenProps {
+  navigation?: any;
+}
+
+const RecommendationsScreen: React.FC<RecommendationsScreenProps> = ({
+  navigation: navigationProp,
+}) => {
   const { t, language } = useLanguage();
+  const { appearanceKey } = useTheme();
+  const styles = useMemo(() => createStyles(), [appearanceKey]);
+  const hookNav = useNavigation();
+  const navigation = navigationProp ?? hookNav;
   const { user, isGuest } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(20);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   useEffect(() => {
-    // Показываем экран сразу, данные загружаем в фоне
-    setLoading(false);
     if (user?.id) {
       loadVehicles();
-    } else if (isGuest) {
-      // Для гостевого режима показываем пустой экран без загрузки
     }
   }, [user?.id, isGuest]);
 
@@ -39,18 +55,25 @@ const RecommendationsScreen: React.FC = () => {
     }
   }, [vehicles, selectedIndex, language]);
 
+  useEffect(() => {
+    if (isGuest || !user?.id) {
+      setIsInitialLoading(false);
+      return;
+    }
+    if (vehicles.length > 0 || user?.id) {
+      setIsInitialLoading(false);
+    }
+  }, [vehicles.length, user?.id, isGuest]);
+
   const loadVehicles = async () => {
     try {
-      // Не устанавливаем loading=true, чтобы экран уже был виден
       const list = await ApiService.getVehicles();
       setVehicles(list);
       if (list.length === 0) {
         setRecommendations([]);
       }
-    } catch (e) {
-      // Не показываем Alert при первой загрузке
-    } finally {
-      setLoading(false);
+    } catch {
+      // silent
     }
   };
 
@@ -62,14 +85,25 @@ const RecommendationsScreen: React.FC = () => {
         setRecommendations([]);
         return;
       }
-      let recos = await ApiService.getCarRecommendationsForCar(v.make, v.model, v.year, v.mileage, language);
-      // Клиентский fallback: если по году пусто, пробуем без года (все периоды)
+      let recos = await ApiService.getCarRecommendationsForCar(
+        v.make,
+        v.model,
+        v.year,
+        v.mileage,
+        language
+      );
       if (!recos || recos.length === 0) {
-        recos = await ApiService.getCarRecommendationsForCar(v.make, v.model, undefined, undefined, language);
+        recos = await ApiService.getCarRecommendationsForCar(
+          v.make,
+          v.model,
+          undefined,
+          undefined,
+          language
+        );
       }
       setRecommendations(recos || []);
       setPage(1);
-    } catch (e) {
+    } catch {
       setRecommendations([]);
       setPage(1);
     }
@@ -81,26 +115,41 @@ const RecommendationsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const renderVehicleChip = ({ item, index }: { item: Vehicle; index: number }) => {
-    const isActive = index === selectedIndex;
-    return (
-      <TouchableOpacity
-        onPress={() => setSelectedIndex(index)}
-        style={[styles.vehicleChip, isActive && styles.vehicleChipActive]}
-        activeOpacity={0.8}
-      >
-        <Icon name="car" size={16} color={isActive ? COLORS.card : COLORS.text} />
-        <Text style={[styles.vehicleChipText, isActive && styles.vehicleChipTextActive]} numberOfLines={1}>
-          {item.make} {item.model} {item.year || ''}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderVehicleChip = useCallback(
+    (item: Vehicle, index: number) => {
+      const isActive = index === selectedIndex;
+      return (
+        <TouchableOpacity
+          onPress={() => setSelectedIndex(index)}
+          style={[styles.vehicleChip, isActive && styles.vehicleChipActive]}
+          activeOpacity={0.85}
+        >
+          <Icon name="car" size={16} color={isActive ? COLORS.background : COLORS.textSecondary} />
+          <Text
+            style={[styles.vehicleChipText, isActive && styles.vehicleChipTextActive]}
+            numberOfLines={1}
+          >
+            {item.make} {item.model} {item.year || ''}
+          </Text>
+        </TouchableOpacity>
+      );
+    },
+    [selectedIndex, styles]
+  );
 
   const getLocalizedText = (rec: any) => {
     const translations = (rec?.translations || []) as Array<{ locale: string; recommendation: string }>;
-    const byLocale = Object.fromEntries(translations.map(t => [t.locale, t.recommendation]));
+    const byLocale = Object.fromEntries(translations.map((tr) => [tr.locale, tr.recommendation]));
     return byLocale[language] || byLocale['ru'] || byLocale['uk'] || byLocale['en'] || '';
+  };
+
+  /**
+   * Рекомендации без изображений: игнорируем любые URL картинок из API.
+   */
+  const sanitizeRecommendationBody = (rec: any): string => {
+    const raw = getLocalizedText(rec);
+    if (!raw || typeof raw !== 'string') return '';
+    return raw.replace(/!\[[^\]]*]\([^)]+\)/g, '').replace(/https?:\/\/[^\s]+\.(png|jpe?g|gif|webp)(\?[^\s]*)?/gi, '');
   };
 
   const dataPaged = recommendations.slice(0, page * pageSize);
@@ -109,220 +158,323 @@ const RecommendationsScreen: React.FC = () => {
   const loadMore = () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
-    // Simulate async tick to keep UX consistent
     setTimeout(() => {
-      setPage(prev => prev + 1);
+      setPage((prev) => prev + 1);
       setIsLoadingMore(false);
     }, 50);
   };
 
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const renderRecommendation = useCallback(
+    ({ item }: { item: any }) => {
+      const section = item?.manual_section || item?.manualSection;
+      const slug = section?.slug;
+      const normalizedKey = (slug || section?.key || '')
+        ? String(slug || section?.key).replace(/-/g, '_')
+        : '';
+      const localized = normalizedKey ? t(`manual.sections.${normalizedKey}`) : '';
+      const backendLocalized = section?.localized_title;
+      const sectionTitle =
+        backendLocalized ||
+        (localized && normalizedKey && localized !== `manual.sections.${normalizedKey}`
+          ? localized
+          : '') ||
+        section?.title ||
+        section?.key ||
+        item?.item;
 
-  useEffect(() => {
-    // Отслеживаем первую загрузку для показа индикатора
-    if (vehicles.length > 0 || (user?.id && !isGuest)) {
-      setIsInitialLoading(false);
-    }
-  }, [vehicles.length, user?.id, isGuest]);
+      const bodyText = sanitizeRecommendationBody(item);
 
-  const renderRecommendation = ({ item }: { item: any }) => {
-    const section = item?.manual_section || item?.manualSection;
-    const slug = section?.slug;
-    const normalizedKey = (slug || section?.key || '')
-      ? String(slug || section?.key).replace(/-/g, '_')
-      : '';
-    const localized = normalizedKey ? t(`manual.sections.${normalizedKey}`) : '';
-    const backendLocalized = section?.localized_title;
-    const sectionTitle = backendLocalized
-      || ((localized && normalizedKey && localized !== `manual.sections.${normalizedKey}`) ? localized : '')
-      || section?.title
-      || section?.key
-      || item?.item;
-
-    return (
-    <Card key={`${item.id}`} style={styles.card}>
-      <Text style={styles.itemTitle}>{sectionTitle}</Text>
-      {!!item.year && (
-        <Text style={styles.itemSubtitle}>{item.year}</Text>
-      )}
-      <Text style={styles.itemIntervalLine}>
-        {t('recommendations.replacementInterval') || 'Интервал замены'}: {item.mileage_interval?.toString()} {t('common.kilometers') || 'км'}
-      </Text>
-      <Text style={styles.itemText}>{getLocalizedText(item)}</Text>
-    </Card>
-  ); } 
+      return (
+        <View style={styles.recRow}>
+          <View style={styles.recIconWrap}>
+            <Icon name="lightbulb" size={22} color={COLORS.textSecondary} />
+          </View>
+          <View style={styles.recBody}>
+            <Text style={styles.recTitle} numberOfLines={3}>
+              {sectionTitle}
+            </Text>
+            {!!item.year && <Text style={styles.recMeta}>{item.year}</Text>}
+            <Text style={styles.recInterval}>
+              {t('recommendations.replacementInterval')}: {item.mileage_interval?.toString()}{' '}
+              {t('common.kilometers')}
+            </Text>
+            {bodyText ? <Text style={styles.recText}>{bodyText}</Text> : null}
+          </View>
+        </View>
+      );
+    },
+    [styles, t, language]
+  );
 
   const ListFooter = () => (
-    <View style={{ paddingVertical: SPACING.lg }}>
-      {isLoadingMore && <ActivityIndicator color={COLORS.accent} />}
-      {!isLoadingMore && hasMore && (
-        <Text style={{ textAlign: 'center', color: COLORS.textMuted }}>{t('common.pullToLoadMore') || 'Прокрутите, чтобы загрузить ещё'}</Text>
-      )}
+    <View style={styles.listFooter}>
+      {isLoadingMore ? <ActivityIndicator color={COLORS.accent} /> : null}
+      {!isLoadingMore && hasMore ? (
+        <Text style={styles.loadMoreHint}>{t('common.pullToLoadMore')}</Text>
+      ) : null}
     </View>
   );
 
   const current = vehicles[selectedIndex];
   const missingYear = current && (!current.year || current.year <= 0);
+  const showBack =
+    typeof navigation.canGoBack === 'function' && navigation.canGoBack();
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        {isInitialLoading ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+          </View>
+        ) : null}
+
+        {showBack ? <ScreenBackLink onPress={() => navigation.goBack()} /> : null}
+
+        <View style={styles.pageHeader}>
+          <View style={styles.pageHeaderText}>
+            <Text style={styles.pageTitle}>{t('navigation.recommendations')}</Text>
+            <Text style={styles.pageSub}>{t('recommendations.pageSubtitle')}</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsScroll}
+        >
+          {vehicles.map((v, idx) => (
+            <View key={v.id} style={styles.chipWrap}>
+              {renderVehicleChip(v, idx)}
+            </View>
+          ))}
+        </ScrollView>
+
+        {vehicles.length === 0 ? (
+          <View style={styles.bannerMuted}>
+            <Text style={styles.bannerText}>{t('common.noVehicles')}</Text>
+          </View>
+        ) : null}
+
+        {current && missingYear ? (
+          <View style={styles.bannerWarn}>
+            <Text style={styles.bannerTitle}>{t('recommendations.missingYearTitle')}</Text>
+            <Text style={styles.bannerSub}>{t('recommendations.missingYearText')}</Text>
+          </View>
+        ) : null}
+
+        {current && !missingYear && dataPaged.length === 0 ? (
+          <View style={styles.bannerMuted}>
+            <Text style={styles.bannerTitle}>{t('recommendations.noDataTitle')}</Text>
+            <Text style={styles.bannerSub}>{t('recommendations.noDataText')}</Text>
+          </View>
+        ) : null}
+
+        {current && !missingYear && dataPaged.length > 0 ? (
+          <Text style={styles.sectionHeading}>{t('recommendations.sectionList').toUpperCase()}</Text>
+        ) : null}
+      </>
+    ),
+    [
+      current,
+      dataPaged.length,
+      isInitialLoading,
+      missingYear,
+      navigation,
+      renderVehicleChip,
+      showBack,
+      styles,
+      t,
+      vehicles,
+    ]
+  );
 
   return (
-    <SafeAreaView style={styles.container} edges={['left','right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <FlatList
         data={missingYear ? [] : dataPaged}
         renderItem={renderRecommendation}
         keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={
-          <>
-            {/* Индикатор загрузки в фоне */}
-            {isInitialLoading && (
-              <View style={{ padding: SPACING.md, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={COLORS.accent} />
-              </View>
-            )}
-            {/* Vehicle selector under the stack header */}
-            <View style={styles.carouselWrapper}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.vehicleChips}
-              >
-                <View style={styles.vehicleChipsRow}>
-                  {vehicles.map((v, idx) => (
-                    <View key={v.id} style={{ marginRight: SPACING.sm }}>
-                      {renderVehicleChip({ item: v, index: idx } as any)}
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-            {vehicles.length === 0 && (
-              <Card style={styles.card}>
-                <Text style={styles.emptyText}>{t('common.noVehicles') || 'Нет добавленных авто'}</Text>
-              </Card>
-            )}
-            {current && missingYear && (
-              <Card style={styles.cardWarning}>
-                <Text style={styles.warningTitle}>{t('recommendations.missingYearTitle') || 'Укажите год авто'}</Text>
-                <Text style={styles.warningText}>
-                  {t('recommendations.missingYearText') || 'Для получения рекомендаций добавьте год выпуска на странице авто.'}
-                </Text>
-              </Card>
-            )}
-            {current && !missingYear && dataPaged.length === 0 && (
-              <Card style={styles.card}>
-                <Text style={styles.warningTitle}>{t('recommendations.noDataTitle') || 'Нет рекомендаций'}</Text>
-                <Text style={styles.warningText}>
-                  {t('recommendations.noDataText') || 'Для выбранных марки, модели и года рекомендации отсутствуют.'}
-                </Text>
-              </Card>
-            )}
-          </>
-        }
+        ListHeaderComponent={listHeader}
         ListFooterComponent={<ListFooter />}
         onEndReachedThreshold={0.25}
         onEndReached={loadMore}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ paddingBottom: SPACING.xl + 90 }}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  carouselWrapper: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingVertical: SPACING.md,
-  },
-  vehicleChips: {
-    paddingHorizontal: SPACING.lg,
-    paddingRight: SPACING.lg,
-  },
-  vehicleChipsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  vehicleChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginRight: SPACING.sm,
-    backgroundColor: COLORS.background,
-    gap: 8,
-  },
-  vehicleChipActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  vehicleChipText: {
-    color: COLORS.text,
-    fontSize: 14,
-    maxWidth: 220,
-  },
-  vehicleChipTextActive: {
-    color: COLORS.card,
-  },
-  card: {
-    margin: SPACING.lg,
-    marginTop: SPACING.md,
-  },
-  cardWarning: {
-    margin: SPACING.lg,
-    marginTop: SPACING.md,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.accent,
-  },
-  emptyText: {
-    color: COLORS.textSecondary,
-  },
-  warningTitle: {
-    color: COLORS.text,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  warningText: {
-    color: COLORS.textSecondary,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  itemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  itemInterval: {
-    fontSize: 14,
-    color: COLORS.accent,
-  },
-  itemSubtitle: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginBottom: 6,
-  },
-  itemIntervalLine: {
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  itemText: {
-    color: COLORS.text,
-  },
-});
+function createStyles() {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: COLORS.background,
+    },
+    listContent: {
+      flexGrow: 1,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.xxl,
+    },
+    loaderWrap: {
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+    },
+    pageHeader: {
+      marginBottom: SPACING.lg,
+      paddingTop: SPACING.sm,
+    },
+    pageHeaderText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    pageTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 28,
+      letterSpacing: -0.4,
+      color: COLORS.text,
+      marginBottom: 6,
+    },
+    pageSub: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.textSecondary,
+      lineHeight: 20,
+    },
+    chipsScroll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingBottom: SPACING.md,
+      gap: SPACING.sm,
+    },
+    chipWrap: {
+      marginRight: SPACING.sm,
+    },
+    vehicleChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+      maxWidth: 260,
+    },
+    vehicleChipActive: {
+      backgroundColor: COLORS.accent,
+      borderColor: COLORS.accent,
+    },
+    vehicleChipText: {
+      fontFamily: FONTS.medium,
+      fontSize: 13,
+      color: COLORS.text,
+      flexShrink: 1,
+    },
+    vehicleChipTextActive: {
+      color: COLORS.background,
+    },
+    sectionHeading: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 13,
+      letterSpacing: 2,
+      color: COLORS.accent,
+      marginBottom: SPACING.md,
+    },
+    recRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: SPACING.md,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+    },
+    recIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: RADIUS.md,
+      backgroundColor: hexToRgba(COLORS.text, 0.07),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recBody: {
+      flex: 1,
+      minWidth: 0,
+    },
+    recTitle: {
+      fontFamily: FONTS.semiBold,
+      fontSize: 15,
+      color: COLORS.text,
+      marginBottom: 4,
+    },
+    recMeta: {
+      fontFamily: FONTS.regular,
+      fontSize: 12,
+      color: COLORS.textMuted,
+      marginBottom: 4,
+    },
+    recInterval: {
+      fontFamily: FONTS.medium,
+      fontSize: 13,
+      color: COLORS.textSecondary,
+      marginBottom: SPACING.sm,
+    },
+    recText: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.text,
+      lineHeight: 20,
+    },
+    bannerMuted: {
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.surface,
+    },
+    bannerWarn: {
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      borderRadius: RADIUS.xl,
+      borderWidth: 1,
+      borderColor: hexToRgba(COLORS.accent, 0.45),
+      backgroundColor: hexToRgba(COLORS.accent, 0.08),
+    },
+    bannerTitle: {
+      fontFamily: FONTS.bold,
+      fontSize: 15,
+      color: COLORS.text,
+      marginBottom: 6,
+    },
+    bannerSub: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.textSecondary,
+      lineHeight: 20,
+    },
+    bannerText: {
+      fontFamily: FONTS.regular,
+      fontSize: 14,
+      color: COLORS.textSecondary,
+    },
+    listFooter: {
+      paddingVertical: SPACING.lg,
+      alignItems: 'center',
+    },
+    loadMoreHint: {
+      textAlign: 'center',
+      fontFamily: FONTS.regular,
+      fontSize: 13,
+      color: COLORS.textMuted,
+    },
+  });
+}
 
 export default RecommendationsScreen;
-
-

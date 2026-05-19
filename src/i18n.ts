@@ -12,6 +12,8 @@ const resources = {
   ru: { translation: ru },
 };
 
+const APP_DEFAULT_LANGUAGE: 'uk' | 'ru' | 'en' = 'en';
+
 // Determine initial language from device locale
 const detectInitialLanguage = (): 'uk' | 'ru' | 'en' => {
   try {
@@ -19,9 +21,9 @@ const detectInitialLanguage = (): 'uk' | 'ru' | 'en' => {
     // Examples: 'uk', 'uk-ua', 'ru', 'ru-ru', 'en-us', etc.
     if (locale.startsWith('uk')) return 'uk';
     if (locale.startsWith('ru')) return 'ru';
-    return 'en';
+    return APP_DEFAULT_LANGUAGE;
   } catch (_) {
-    return 'en';
+    return APP_DEFAULT_LANGUAGE;
   }
 };
 
@@ -32,8 +34,8 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: initialLanguage, // Device-based default language
-    fallbackLng: 'en',
+    lng: initialLanguage,
+    fallbackLng: APP_DEFAULT_LANGUAGE,
     interpolation: { escapeValue: false },
     compatibilityJSON: 'v4',
   });

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,18 @@ import {
   Platform,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import Icon from './Icon';
 import Input from './Input';
 import DateInput from './DateInput';
 import Button from './Button';
-import { COLORS, FONTS, SPACING, BASE_URL } from '../constants';
+import { COLORS, FONTS, SPACING, BASE_URL, RADIUS, hexToRgba } from '../constants';
 import { ServiceHistory, Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ExpenseModalProps {
   visible: boolean;
@@ -46,7 +48,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
   isPro,
 }) => {
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
+  const { appearanceKey } = useTheme();
   const [formData, setFormData] = useState({
     vehicle_id: '',
     expense_type_id: '',
@@ -164,11 +166,6 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
   }, [visible, editingRecord, initialVehicleId, expenseTypes]);
 
   const pickReceiptPhoto = async () => {
-    if (!isPro) {
-      Alert.alert('PRO функция', 'Добавление фото чеков доступно только для PRO подписчиков');
-      return;
-    }
-
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (status !== 'granted') {
@@ -190,11 +187,6 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
   };
 
   const takeReceiptPhoto = async () => {
-    if (!isPro) {
-      Alert.alert('PRO функция', 'Добавление фото чеков доступно только для PRO подписчиков');
-      return;
-    }
-
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     
     if (status !== 'granted') {
@@ -257,29 +249,289 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
     }
   };
 
+  const styles = useMemo(() => {
+    return StyleSheet.create({
+      container: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+      },
+      keyboardAvoidingView: {
+        flex: 1,
+      },
+      header: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        paddingHorizontal: SPACING.lg,
+        paddingTop: SPACING.sm,
+        paddingBottom: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+        backgroundColor: COLORS.background,
+      },
+      headerTextBlock: {
+        flex: 1,
+        paddingRight: SPACING.md,
+        minWidth: 0,
+      },
+      headerEyebrow: {
+        fontFamily: FONTS.semiBold,
+        fontSize: 10,
+        letterSpacing: 1.6,
+        textTransform: 'uppercase',
+        color: COLORS.textMuted,
+        marginBottom: 6,
+      },
+      headerTitle: {
+        fontFamily: FONTS.bold,
+        fontSize: 18,
+        lineHeight: 24,
+        letterSpacing: -0.2,
+        color: COLORS.text,
+      },
+      closeButton: {
+        padding: SPACING.xs,
+        marginTop: 2,
+        borderRadius: RADIUS.sm,
+      },
+      scrollView: {
+        flex: 1,
+      },
+      scrollContent: {
+        flexGrow: 1,
+        paddingBottom: SPACING.xxl,
+      },
+      content: {
+        padding: SPACING.lg,
+      },
+      formGroup: {
+        marginBottom: SPACING.lg,
+      },
+      label: {
+        fontSize: 11,
+        fontFamily: FONTS.semiBold,
+        color: COLORS.textSecondary,
+        marginBottom: SPACING.sm,
+        letterSpacing: 2,
+        textTransform: 'uppercase',
+      },
+      chipsScrollContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingRight: SPACING.lg,
+      },
+      chip: {
+        marginRight: SPACING.sm,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: 6,
+        borderRadius: RADIUS.pill,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+      },
+      chipActive: {
+        borderColor: COLORS.accent,
+        backgroundColor: hexToRgba(COLORS.accent, 0.12),
+      },
+      chipText: {
+        fontFamily: FONTS.medium,
+        fontSize: 12,
+        color: COLORS.textSecondary,
+      },
+      chipTextActive: {
+        color: COLORS.accent,
+        fontFamily: FONTS.semiBold,
+      },
+      typeChip: {
+        alignItems: 'center',
+        minWidth: 100,
+      },
+      receiptHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: SPACING.sm,
+      },
+      proBadge: {
+        backgroundColor: hexToRgba(COLORS.accent, 0.22),
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: 2,
+        borderRadius: RADIUS.pill,
+        marginLeft: SPACING.sm,
+        borderWidth: 1,
+        borderColor: hexToRgba(COLORS.accent, 0.35),
+      },
+      proBadgeText: {
+        color: COLORS.accent,
+        fontSize: 10,
+        fontFamily: FONTS.bold,
+      },
+      receiptButtons: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        flexWrap: 'nowrap',
+      },
+      receiptButton: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.sm,
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.sm,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+      },
+      receiptButtonText: {
+        fontFamily: FONTS.semiBold,
+        fontSize: 12,
+        color: COLORS.accent,
+      },
+      receiptPreview: {
+        marginTop: SPACING.md,
+        position: 'relative',
+        borderRadius: RADIUS.xl,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+      },
+      receiptImage: {
+        width: '100%',
+        height: 200,
+        borderRadius: RADIUS.xl,
+      },
+      removeReceiptButton: {
+        position: 'absolute',
+        top: SPACING.sm,
+        right: SPACING.sm,
+        backgroundColor: COLORS.error,
+        borderRadius: 20,
+        width: 32,
+        height: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      imageContainer: {
+        flex: 1,
+      },
+      imageModalOverlay: {
+        flex: 1,
+        backgroundColor: hexToRgba(COLORS.shadow, 0.92),
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      imageModalCloseArea: {
+        flex: 1,
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      imageModalContent: {
+        width: '90%',
+        height: '80%',
+        position: 'relative',
+      },
+      imageModalCloseButton: {
+        position: 'absolute',
+        top: SPACING.lg,
+        right: SPACING.lg,
+        backgroundColor: hexToRgba(COLORS.surface, 0.85),
+        borderRadius: 20,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+      },
+      imageModalImage: {
+        width: '100%',
+        height: '100%',
+      },
+      lockedFeature: {
+        padding: SPACING.xl,
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: RADIUS.card,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        borderStyle: 'dashed',
+      },
+      lockedText: {
+        fontSize: 14,
+        fontFamily: FONTS.regular,
+        color: COLORS.textMuted,
+        marginTop: SPACING.sm,
+        textAlign: 'center',
+      },
+      errorText: {
+        color: COLORS.error,
+        fontSize: 12,
+        fontFamily: FONTS.regular,
+        marginTop: SPACING.xs,
+      },
+      inputField: {
+        borderRadius: RADIUS.xl,
+        backgroundColor: COLORS.surface,
+      },
+      dateFieldTrigger: {
+        borderRadius: RADIUS.xl,
+      },
+      primaryBtn: {
+        marginTop: SPACING.xl,
+        backgroundColor: COLORS.accent,
+        borderRadius: 999,
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 52,
+      },
+      primaryBtnDisabled: {
+        opacity: 0.75,
+      },
+      primaryBtnText: {
+        fontFamily: FONTS.bold,
+        fontSize: 13,
+        letterSpacing: 1.4,
+        color: COLORS.background,
+      },
+      cancelOutline: {
+        marginTop: SPACING.md,
+        borderRadius: 999,
+      },
+    });
+  }, [appearanceKey]);
+
   const renderContent = () => (
     <View style={styles.content}>
       {/* Выбор автомобиля */}
       <View style={styles.formGroup}>
         <Text style={styles.label}>{t('expenseModal.vehicle')} {t('expenseModal.required')}</Text>
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           nestedScrollEnabled={true}
+          contentContainerStyle={styles.chipsScrollContent}
         >
           {vehicles.map((vehicle) => (
             <TouchableOpacity
               key={vehicle.id}
               style={[
-                styles.vehicleOption,
-                formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionActive,
+                styles.chip,
+                formData.vehicle_id === vehicle.id.toString() && styles.chipActive,
               ]}
               onPress={() => handleInputChange('vehicle_id', vehicle.id.toString())}
+              activeOpacity={0.85}
             >
-              <Text style={[
-                styles.vehicleOptionText,
-                formData.vehicle_id === vehicle.id.toString() && styles.vehicleOptionTextActive,
-              ]}>
+              <Text
+                style={[
+                  styles.chipText,
+                  formData.vehicle_id === vehicle.id.toString() && styles.chipTextActive,
+                ]}
+                numberOfLines={1}
+              >
                 {vehicle.make} {vehicle.model}
               </Text>
             </TouchableOpacity>
@@ -291,24 +543,29 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
       {/* Тип траты */}
       <View style={styles.formGroup}>
         <Text style={styles.label}>{t('expenseModal.expenseType')} {t('expenseModal.required')}</Text>
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           nestedScrollEnabled={true}
+          contentContainerStyle={styles.chipsScrollContent}
         >
           {expenseTypes.map((type) => (
             <TouchableOpacity
               key={type.id}
               style={[
-                styles.typeOption,
-                formData.expense_type_id === type.id.toString() && styles.typeOptionActive,
+                styles.chip,
+                styles.typeChip,
+                formData.expense_type_id === type.id.toString() && styles.chipActive,
               ]}
               onPress={() => handleInputChange('expense_type_id', type.id.toString())}
+              activeOpacity={0.85}
             >
-              <Text style={[
-                styles.typeOptionText,
-                formData.expense_type_id === type.id.toString() && styles.typeOptionTextActive,
-              ]}>
+              <Text
+                style={[
+                  styles.chipText,
+                  formData.expense_type_id === type.id.toString() && styles.chipTextActive,
+                ]}
+              >
                 {type.name}
               </Text>
             </TouchableOpacity>
@@ -324,6 +581,8 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
         keyboardType="numeric"
         placeholder={`0 ${userCurrency}`}
         error={errors.cost}
+        labelStyle={styles.label}
+        inputStyle={styles.inputField}
       />
 
       <DateInput
@@ -331,6 +590,8 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
         value={formData.service_date}
         onDateChange={(value: string) => handleInputChange('service_date', value)}
         error={errors.service_date}
+        labelStyle={styles.label}
+        fieldStyle={styles.dateFieldTrigger}
       />
 
       <Input
@@ -340,6 +601,8 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
         placeholder={t('expenseModal.description')}
         multiline
         numberOfLines={3}
+        labelStyle={styles.label}
+        inputStyle={styles.inputField}
       />
 
       {/* Фото чека (PRO) */}
@@ -359,17 +622,23 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
               <TouchableOpacity
                 style={styles.receiptButton}
                 onPress={takeReceiptPhoto}
+                activeOpacity={0.85}
               >
-                <Icon name="camera" size={24} color={COLORS.accent} />
-                <Text style={styles.receiptButtonText}>{t('expenseModal.takePhoto')}</Text>
+                <Icon name="camera" size={18} color={COLORS.accent} />
+                <Text style={styles.receiptButtonText} numberOfLines={1} ellipsizeMode="tail">
+                  {t('expenseModal.takePhoto')}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.receiptButton}
                 onPress={pickReceiptPhoto}
+                activeOpacity={0.85}
               >
-                <Icon name="image" size={24} color={COLORS.accent} />
-                <Text style={styles.receiptButtonText}>{t('expenseModal.chooseFromGallery')}</Text>
+                <Icon name="image" size={18} color={COLORS.accent} />
+                <Text style={styles.receiptButtonText} numberOfLines={1} ellipsizeMode="tail">
+                  {t('expenseModal.chooseFromGallery')}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -403,7 +672,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
                     setImageError(false);
                   }}
                 >
-                  <Icon name="close" size={20} color={COLORS.background} />
+                  <Icon name="close" size={20} color={COLORS.text} />
                 </TouchableOpacity>
               </View>
             )}
@@ -418,21 +687,28 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
         )}
       </View>
 
-      <View style={styles.modalButtons}>
-        <Button
-          title={t('expenseModal.cancel')}
-          onPress={onClose}
-          variant="outline"
-          disabled={loading}
-          style={{ flex: 1, marginRight: SPACING.sm }}
-        />
-        <Button
-          title={loading ? `${t('expenseModal.save')}...` : t('expenseModal.save')}
-          onPress={handleSubmitForm}
-          disabled={loading}
-          style={{ flex: 1 }}
-        />
-      </View>
+      <TouchableOpacity
+        style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+        onPress={handleSubmitForm}
+        disabled={loading}
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.save')}
+      >
+        {loading ? (
+          <ActivityIndicator color={COLORS.background} />
+        ) : (
+          <Text style={styles.primaryBtnText}>{t('common.save').toUpperCase()}</Text>
+        )}
+      </TouchableOpacity>
+
+      <Button
+        title={t('common.cancel')}
+        onPress={onClose}
+        variant="outline"
+        disabled={loading}
+        style={styles.cancelOutline}
+      />
     </View>
   );
 
@@ -451,13 +727,21 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
             keyboardVerticalOffset={0}
           >
             <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Icon name="close" size={20} color={COLORS.text} />
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.headerEyebrow}>{t('expenseModal.formEyebrow')}</Text>
+                <Text style={styles.headerTitle} numberOfLines={2}>
+                  {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.closeButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Icon name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
-              <Text style={styles.title}>
-                {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
-              </Text>
-              <View style={{ width: 40 }} />
             </View>
 
             <ScrollView
@@ -474,13 +758,21 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
         ) : (
           <>
             <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Icon name="close" size={20} color={COLORS.text} />
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.headerEyebrow}>{t('expenseModal.formEyebrow')}</Text>
+                <Text style={styles.headerTitle} numberOfLines={2}>
+                  {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.closeButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Icon name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
-              <Text style={styles.title}>
-                {editingRecord ? t('expenseModal.editTitle') : t('expenseModal.title')}
-              </Text>
-              <View style={{ width: 40 }} />
             </View>
 
             <ScrollView
@@ -513,7 +805,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 style={styles.imageModalCloseButton}
                 onPress={() => setShowImageModal(false)}
               >
-                <Icon name="close" size={24} color={COLORS.background} />
+                <Icon name="close" size={24} color={COLORS.text} />
               </TouchableOpacity>
               {receiptPhoto && (
                 <Image
@@ -529,218 +821,6 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  closeButton: {
-    padding: SPACING.sm,
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.text,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: SPACING.xxl,
-  },
-  content: {
-    padding: SPACING.lg,
-  },
-  formGroup: {
-    marginBottom: SPACING.lg,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  vehicleOption: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    marginRight: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  vehicleOptionActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  vehicleOptionText: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.text,
-  },
-  vehicleOptionTextActive: {
-    color: COLORS.background,
-    fontFamily: FONTS.medium,
-  },
-  typeOption: {
-    alignItems: 'center',
-    padding: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: 10,
-    marginRight: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    minWidth: 100,
-  },
-  typeOptionActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  typeOptionText: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  typeOptionTextActive: {
-    color: COLORS.background,
-    fontFamily: FONTS.medium,
-  },
-  receiptHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  proBadge: {
-    backgroundColor: COLORS.error,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: SPACING.sm,
-  },
-  proBadgeText: {
-    color: COLORS.background,
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-  },
-  receiptButtons: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  receiptButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.md,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  receiptButtonText: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.text,
-    marginLeft: SPACING.xs,
-  },
-  receiptPreview: {
-    marginTop: SPACING.md,
-    position: 'relative',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  receiptImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-  },
-  removeReceiptButton: {
-    position: 'absolute',
-    top: SPACING.sm,
-    right: SPACING.sm,
-    backgroundColor: COLORS.error,
-    borderRadius: 20,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageContainer: {
-    flex: 1,
-  },
-  imageModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageModalCloseArea: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageModalContent: {
-    width: '90%',
-    height: '80%',
-    position: 'relative',
-  },
-  imageModalCloseButton: {
-    position: 'absolute',
-    top: SPACING.lg,
-    right: SPACING.lg,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  imageModalImage: {
-    width: '100%',
-    height: '100%',
-  },
-  lockedFeature: {
-    padding: SPACING.xl,
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
-  },
-  lockedText: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    marginTop: SPACING.sm,
-  },
-  errorText: {
-    color: COLORS.error,
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    marginTop: SPACING.xs,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    marginTop: SPACING.lg,
-  },
-});
 
 export default ExpenseModal;
 

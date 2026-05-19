@@ -114,7 +114,9 @@ const LoginPromptModal: React.FC<LoginPromptModalProps> = ({
                   onPress={handleLogin}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.primaryButtonText}>{t('welcome.login')}</Text>
+                  <Text style={[styles.primaryButtonText, { color: COLORS.background }]}>
+                    {t('welcome.login')}
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Register Button */}
@@ -205,7 +207,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
