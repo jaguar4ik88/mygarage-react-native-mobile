@@ -15,6 +15,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppStackHeader from '../components/AppStackHeader';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -333,6 +334,7 @@ function createVehicleDetailStyles() {
 
 const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
   vehicle,
+  onBack,
   onEditVehicle,
   onVehicleDeleted,
   onNavigateToReminders,
@@ -549,6 +551,24 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
     navigation?.navigate('VehicleDocuments', { vehicle });
   };
 
+  const openStatistics = () => {
+    if (!isPro) {
+      Alert.alert(
+        t('subscription.proFeature'),
+        t('subscription.reportsRequiresPro'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('subscription.upgrade'),
+            onPress: () => navigation?.navigate('Subscription'),
+          },
+        ]
+      );
+      return;
+    }
+    onNavigateToStatistics();
+  };
+
   if (loading) {
     return <LoadingSpinner text={t('common.loading')} />;
   }
@@ -564,6 +584,7 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <AppStackHeader title={t('vehicleDetail.title')} onBack={onBack} />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -736,9 +757,10 @@ const VehicleDetailScreen: React.FC<VehicleDetailScreenProps> = ({
 
           <Text style={styles.sectionHeading}>{t('vehicleDetail.sectionQuickLinks')}</Text>
           <View style={styles.quickLinksGrid}>
-            <TouchableOpacity style={styles.quickLink} onPress={onNavigateToStatistics} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.quickLink} onPress={openStatistics} activeOpacity={0.85}>
               <Icon name="pie-chart" size={16} color={COLORS.accent} />
               <Text style={styles.quickLinkLabel}>{t('actions.statistics')}</Text>
+              {!isPro ? <Icon name="lock" size={12} color={COLORS.textMuted} /> : null}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickLink}

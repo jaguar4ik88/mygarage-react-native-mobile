@@ -29,7 +29,9 @@ class MainApplication : Application(), ReactApplication {
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
 
-          override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
+          /** false при сборке `./gradlew assembleDebug -PstandaloneDebug=true` — APK без Metro. */
+          override fun getUseDeveloperSupport(): Boolean =
+              BuildConfig.DEBUG && !BuildConfig.STANDALONE_DEBUG
 
           override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
       }

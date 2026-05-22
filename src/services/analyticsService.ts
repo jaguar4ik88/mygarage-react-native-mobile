@@ -24,7 +24,11 @@ export type AnalyticsEventName =
   | 'sto_route_opened'
   | 'manual_section_toggle'
   | 'manual_pdf_open'
-  | 'pdf_export';
+  | 'pdf_export'
+  | 'password_reset_code_sent'
+  | 'password_reset_code_failed'
+  | 'password_reset_success'
+  | 'password_reset_failed';
 
 export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined>;
 

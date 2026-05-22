@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, ViewStyle, StyleProp } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, ViewStyle, StyleProp } from 'react-native';
 import { COLORS, FONTS, SPACING } from '../constants';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -58,6 +58,9 @@ export default function ScreenBackLink({
           paddingVertical: 0,
           paddingHorizontal: 0,
           marginBottom: 0,
+          /** В native-stack header iOS при релизе у Pressable иногда рисуется лишняя «обводка» контейнера */
+          backgroundColor: 'transparent',
+          borderWidth: 0,
         },
         pressed: {
           opacity: 0.65,
@@ -87,6 +90,26 @@ export default function ScreenBackLink({
         ? styles.pressableToolbar
         : styles.pressableBlock;
 
+  const textEl = (
+    <Text style={[styles.text, uppercase ? styles.textUppercase : null]}>
+      {showArrow ? `\u2190 ${displayText}` : displayText}
+    </Text>
+  );
+
+  /** В шапке native-stack на iOS Pressable может получать системную обводку; TouchableOpacity — без неё */
+  if (layout === 'navbar') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.65}
+        hitSlop={hitSlop}
+        style={[pressableBase, containerStyle]}
+      >
+        {textEl}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <Pressable
       onPress={onPress}
@@ -97,9 +120,7 @@ export default function ScreenBackLink({
         containerStyle,
       ]}
     >
-      <Text style={[styles.text, uppercase ? styles.textUppercase : null]}>
-        {showArrow ? `\u2190 ${displayText}` : displayText}
-      </Text>
+      {textEl}
     </Pressable>
   );
 }

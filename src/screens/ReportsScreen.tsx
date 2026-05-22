@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   COLORS,
   CHART_COLOR_POOL_LIGHT,
@@ -26,6 +28,7 @@ import { Vehicle, ServiceHistory } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import SubscriptionService from '../services/SubscriptionService';
 
 type RangeMode = 'month' | 'year';
 
@@ -66,6 +69,72 @@ const ReportsScreen: React.FC = () => {
   const loc = language === 'uk' ? 'uk-UA' : language === 'en' ? 'en-US' : 'ru-RU';
 
   const showBack = typeof navigation.canGoBack === 'function' && navigation.canGoBack();
+
+  const navigateToSubscription = useCallback(() => {
+    let nav: any = navigation as any;
+    while (nav) {
+      try {
+        const names = nav.getState?.()?.routeNames;
+        if (Array.isArray(names) && names.includes('Subscription')) {
+          nav.navigate('Subscription');
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+      nav = typeof nav.getParent === 'function' ? nav.getParent() : undefined;
+    }
+  }, [navigation]);
+
+  const [reportsAccessOk, setReportsAccessOk] = useState<boolean | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        setReportsAccessOk(null);
+        if (!user?.id || isGuest) {
+          if (!cancelled) {
+            setReportsAccessOk(false);
+            Alert.alert(
+              t('auth.authRequired') || '',
+              t('actions.requiresLogin') || '',
+              [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
+            );
+          }
+          return;
+        }
+        const ok = await SubscriptionService.checkAccess('reports');
+        if (cancelled) return;
+        if (!ok) {
+          setReportsAccessOk(false);
+          Alert.alert(
+            t('subscription.proFeature') || 'PRO',
+            t('subscription.reportsRequiresPro'),
+            [
+              {
+                text: t('common.cancel'),
+                style: 'cancel',
+                onPress: () => navigation.goBack(),
+              },
+              {
+                text: t('subscription.upgrade'),
+                onPress: () => {
+                  navigation.goBack();
+                  navigateToSubscription();
+                },
+              },
+            ]
+          );
+          return;
+        }
+        setReportsAccessOk(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [navigation, user?.id, isGuest, t, navigateToSubscription])
+  );
 
   const loadRecords = async () => {
     if (!user?.id) return;
@@ -202,6 +271,18 @@ const ReportsScreen: React.FC = () => {
       nav = typeof nav.getParent === 'function' ? nav.getParent() : undefined;
     }
   }, [navigation]);
+
+  if (reportsAccessOk !== true) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        {reportsAccessOk === null ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={COLORS.accent} />
+          </View>
+        ) : null}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -395,15 +476,15 @@ function createStyles() {
       fontSize: 13,
       letterSpacing: 2,
       color: COLORS.accent,
-      marginBottom: SPACING.md,
+      marginBottom: SPACING.sm,
     },
     sectionEyebrowSpaced: {
-      marginTop: SPACING.lg,
+      marginTop: SPACING.sm,
     },
     segmentRow: {
       flexDirection: 'row',
       gap: SPACING.sm,
-      marginBottom: SPACING.sm,
+      marginBottom: SPACING.xs,
     },
     segmentChip: {
       paddingVertical: SPACING.sm,

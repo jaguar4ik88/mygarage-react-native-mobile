@@ -291,32 +291,29 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, navigation, init
 
   const configureGoogleSignIn = () => {
     try {
-      // Для iOS используем CLIENT_ID из GoogleService-Info.plist
-      // CLIENT_ID: 1041379542857-5i00r9ism77rikh77l5hn9lhednciv37.apps.googleusercontent.com
-      // iOS Client ID (без .apps.googleusercontent.com): 1041379542857-5i00r9ism77rikh77l5hn9lhednciv37
-      const config: any = {
-        webClientId: AUTH_CONFIG.google.webClientId,
-        offlineAccess: true,
-        scopes: ['profile', 'email'],
-      };
-      
-      if (Platform.OS === 'ios') {
-        // iOS Client ID - используем из AUTH_CONFIG (который берет из GOOGLE_IOS_CLIENT_ID в .env)
-        if (AUTH_CONFIG.google.iosClientId) {
-          config.iosClientId = AUTH_CONFIG.google.iosClientId;
-          console.log('✅ iOS Client ID configured:', config.iosClientId);
-        }
-        
-        console.log('✅ iOS Web Client ID configured:', config.webClientId);
+      const webId = AUTH_CONFIG.google.webClientId?.trim();
+      if (!webId) {
+        console.error(
+          '❌ GOOGLE_WEB_CLIENT_ID missing in .env — use Web application OAuth client (not iOS client).'
+        );
+        return;
       }
-      
+
+      const config: any = {
+        webClientId: webId,
+        offlineAccess: AUTH_CONFIG.google.offlineAccess,
+        scopes: ['profile', 'email', 'openid'],
+      };
+
+      console.log(
+        '📗 Google Sign-In: iOS app Client ID должен браться из GoogleService-Info.plist; webClientId — с веб-клиента GCP.'
+      );
       console.log('✅ Google Sign-In config:', {
         webClientId: config.webClientId,
-        iosClientId: config.iosClientId,
         offlineAccess: config.offlineAccess,
         scopes: config.scopes,
       });
-      
+
       GoogleSignin.configure(config);
       console.log('✅ Google Sign-In configured');
     } catch (error) {
@@ -443,6 +440,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, navigation, init
         } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
           // Эта ошибка только для Android
           Alert.alert(t('common.error'), t('auth.playServicesNotAvailable') || 'Google Play Services not available');
+        } else if (
+          Platform.OS === 'android' &&
+          (errorMessage.includes('DEVELOPER_ERROR') ||
+            error?.code === '10' ||
+            error?.code === 10)
+        ) {
+          if (__DEV__) {
+            console.warn(
+              '[Google Sign-In DEVELOPER_ERROR] Типично: нет SHA ключа подписи (debug / upload / Play App signing) в Firebase или неверный GOOGLE_WEB_CLIENT_ID. См. mobile/docs/GOOGLE_SIGNIN_ANDROID_DEVELOPER_ERROR.md',
+              { code: error?.code, message: errorMessage }
+            );
+          }
+          Alert.alert(t('common.error'), t('auth.googleDeveloperError'));
         } else {
           console.error('Google Sign-In error:', error);
           const userFriendlyMessage = errorMessage.includes('URL schemes') 

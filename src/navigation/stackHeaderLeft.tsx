@@ -1,28 +1,25 @@
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import ScreenBackLink from '../components/ScreenBackLink';
 
 /**
- * Левая кнопка в native-stack: наш текстовый «назад», а не системная (крупная/жирная).
+ * Левая кнопка в native-stack: текстовый «назад» вместо системной.
+ * Важно: `headerBackVisible: false` — иначе на iOS остаётся нативный back и
+ * `leftItemsSupplementBackButton` даёт «капсулу»/обводку вокруг зоны назад.
  */
 export function stackHeaderLeftOptions(navigation: {
   goBack(): void;
-}): Pick<NativeStackNavigationOptions, 'headerLeft'> {
+}): Pick<NativeStackNavigationOptions, 'headerLeft' | 'headerBackVisible'> {
   return {
+    headerBackVisible: false,
     headerLeft: ({ canGoBack }) =>
       canGoBack ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            marginLeft: Platform.OS === 'ios' ? 6 : 10,
-            minHeight: 44,
-          }}
-        >
-          <ScreenBackLink layout="navbar" onPress={() => navigation.goBack()} />
-        </View>
+        <ScreenBackLink
+          layout="navbar"
+          onPress={() => navigation.goBack()}
+          containerStyle={{ marginLeft: Platform.OS === 'ios' ? 6 : 10 }}
+        />
       ) : null,
   };
 }

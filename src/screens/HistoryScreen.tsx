@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import Card from '../components/Card';
+import AppStackHeader from '../components/AppStackHeader';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import FormModal from '../components/FormModal';
@@ -464,22 +465,6 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
 
   const styles = useMemo(() => createHistoryScreenStyles(), [appearanceKey]);
 
-  useLayoutEffect(() => {
-    navigation?.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={() => void handleAddRecord()}
-          style={{ paddingHorizontal: SPACING.md }}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('history.addRecord')}
-        >
-          <Icon name="add" size={22} color={COLORS.accent} />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, t, handleAddRecord, appearanceKey]);
-
   // Функция для попытки загрузки фото с разными URL
   const tryLoadImage = async (photoPath: string, recordId?: number): Promise<string | null> => {
     // Если это уже полный URL, используем его
@@ -614,7 +599,23 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ navigation }) => {
   // Removed emoji icon map to comply with project UI policy (no emojis)
 
   return (
-    <SafeAreaView style={styles.container} edges={['left','right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <AppStackHeader
+        title={t('history.title')}
+        onBack={navigation?.canGoBack?.() ? () => navigation.goBack() : undefined}
+        right={
+          <TouchableOpacity
+            onPress={() => void handleAddRecord()}
+            style={styles.headerAddFab}
+            activeOpacity={0.85}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('history.addRecord')}
+          >
+            <Icon name="plus" size={20} color={COLORS.background} />
+          </TouchableOpacity>
+        }
+      />
       <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -907,6 +908,14 @@ function createHistoryScreenStyles() {
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  headerAddFab: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButtonText: {
     color: COLORS.accent,

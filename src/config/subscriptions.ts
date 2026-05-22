@@ -23,10 +23,10 @@ export const SUBSCRIPTION_CONFIG = {
   // Маппинг функций к подпискам
   FEATURE_ACCESS: {
     // Базовые функции (доступны всем)
-    basic: ['vehicles_management', 'basic_reminders', 'sto_search', 'advice', 'profile_settings', 'model_recommendations', 'expenses_statistics', 'expenses_history'],
+    basic: ['vehicles_management', 'basic_reminders', 'sto_search', 'advice', 'profile_settings', 'model_recommendations', 'expenses_history'],
     
     // PRO функции
-    pro: ['photo_documents', 'receipt_photos', 'pdf_export', 'unlimited_vehicles', 'unlimited_reminders', 'expense_reminders'],
+    pro: ['photo_documents', 'receipt_photos', 'pdf_export', 'unlimited_vehicles', 'unlimited_reminders', 'expense_reminders', 'reports'],
     
     // PREMIUM функции
     premium: ['ai_assistant', 'trips', 'fuel_tracking', 'mileage_tracking', 'smart_reminders', 'cloud_storage']

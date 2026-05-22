@@ -90,11 +90,12 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
   }, [editingDocument, visible]);
 
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (status !== 'granted') {
-      Alert.alert(t('common.error'), t('documents.errors.permissionDenied'));
-      return;
+    if (Platform.OS === 'ios') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('common.error'), t('documents.errors.permissionDenied'));
+        return;
+      }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({

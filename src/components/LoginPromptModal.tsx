@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { COLORS } from '../constants';
+import { COLORS, RADIUS } from '../constants';
 import Analytics from '../services/analytics';
 
 interface LoginPromptModalProps {
@@ -36,7 +36,96 @@ const LoginPromptModal: React.FC<LoginPromptModalProps> = ({
   context = 'general',
 }) => {
   const { t } = useLanguage();
-  const { isDark } = useTheme();
+  const { isDark, appearanceKey } = useTheme();
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        overlay: {
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        },
+        container: {
+          width: width - 48,
+          maxWidth: 400,
+          borderRadius: RADIUS.sheet,
+          padding: 24,
+          alignItems: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 16,
+          elevation: 10,
+        },
+        closeButton: {
+          position: 'absolute',
+          top: 16,
+          right: 16,
+          width: 32,
+          height: 32,
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10,
+        },
+        iconContainer: {
+          width: 80,
+          height: 80,
+          borderRadius: 40,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: 20,
+          marginTop: 16,
+        },
+        title: {
+          fontSize: 22,
+          fontWeight: 'bold',
+          marginBottom: 12,
+          textAlign: 'center',
+        },
+        message: {
+          fontSize: 15,
+          textAlign: 'center',
+          lineHeight: 22,
+          marginBottom: 28,
+          paddingHorizontal: 8,
+        },
+        buttonsContainer: {
+          width: '100%',
+          gap: 12,
+        },
+        actionButton: {
+          width: '100%',
+          minHeight: 50,
+          borderRadius: RADIUS.xl,
+          justifyContent: 'center',
+          alignItems: 'center',
+          overflow: 'hidden',
+        },
+        secondaryButton: {
+          borderWidth: 2,
+        },
+        primaryButtonText: {
+          fontSize: 16,
+          fontWeight: '600',
+        },
+        secondaryButtonText: {
+          fontSize: 16,
+          fontWeight: '600',
+        },
+        guestButton: {
+          paddingVertical: 12,
+          alignItems: 'center',
+        },
+        guestButtonText: {
+          fontSize: 14,
+          fontWeight: '500',
+        },
+      }),
+    [appearanceKey]
+  );
 
   const handleClose = () => {
     Analytics.track('login_prompt_dismissed', { context });
@@ -110,7 +199,7 @@ const LoginPromptModal: React.FC<LoginPromptModalProps> = ({
               <View style={styles.buttonsContainer}>
                 {/* Login Button */}
                 <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: COLORS.accent }]}
+                  style={[styles.actionButton, { backgroundColor: COLORS.accent }]}
                   onPress={handleLogin}
                   activeOpacity={0.8}
                 >
@@ -122,6 +211,7 @@ const LoginPromptModal: React.FC<LoginPromptModalProps> = ({
                 {/* Register Button */}
                 <TouchableOpacity
                   style={[
+                    styles.actionButton,
                     styles.secondaryButton,
                     {
                       borderColor: COLORS.accent,
@@ -143,93 +233,6 @@ const LoginPromptModal: React.FC<LoginPromptModalProps> = ({
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  container: {
-    width: width - 48,
-    maxWidth: 400,
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  message: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 28,
-    paddingHorizontal: 8,
-  },
-  buttonsContainer: {
-    width: '100%',
-    gap: 12,
-  },
-  primaryButton: {
-    height: 50,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    height: 50,
-    borderRadius: 14,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  guestButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  guestButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});
 
 export default LoginPromptModal;
 

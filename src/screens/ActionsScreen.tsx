@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../components/Icon';
+import AppStackHeader from '../components/AppStackHeader';
 import AnimatedView from '../components/AnimatedView';
 import { COLORS, SPACING, RADIUS, hexToRgba, FONTS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -126,6 +127,30 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
     }
   }, [user?.id, isGuest, isPro, navigation, onNavigateToDocuments, t]);
 
+  const handleOpenReports = useCallback(() => {
+    if (!user?.id || isGuest) {
+      Alert.alert(t('auth.authRequired'), t('actions.requiresLogin'));
+      return;
+    }
+    if (!isPro) {
+      Alert.alert(
+        t('subscription.proFeature') || 'PRO',
+        t('subscription.reportsRequiresPro'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('subscription.upgrade') || 'Upgrade',
+            onPress: () => {
+              navigation?.getParent()?.getParent?.()?.navigate('Subscription');
+            },
+          },
+        ]
+      );
+      return;
+    }
+    onNavigateToReports();
+  }, [user?.id, isGuest, isPro, navigation, onNavigateToReports, t]);
+
   const actionItems = useMemo(
     (): ActionsGridItem[] => [
       {
@@ -154,7 +179,8 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
         title: t('actions.statistics'),
         description: t('actions.statisticsDescription'),
         icon: 'pie-chart',
-        onPress: onNavigateToReports,
+        requiresPro: true,
+        onPress: handleOpenReports,
       },
       {
         id: 'documents',
@@ -229,8 +255,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
       onNavigateToReminders,
       onNavigateToSTO,
       onNavigateToRecommendations,
-      onNavigateToReports,
-      handleExportToPdf,
+      handleOpenReports,
       openDocumentsHub,
     ]
   );
@@ -348,6 +373,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
+      <AppStackHeader title={t('actions.title')} />
       <ScrollView
         style={styles.scrollView}
         refreshControl={

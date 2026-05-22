@@ -8,11 +8,19 @@ def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
+def standaloneDebugApk =
+    project.findProperty("standaloneDebug")?.toString() == "true"
+
 react {
     entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
     hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+
+    // Обычный debug — без Metro нельзя ставить APK. С -PstandaloneDebug=true бандл вшивается, STANDALONE_DEBUG см. ниже.
+    if (standaloneDebugApk) {
+        debuggableVariants.set([])
+    }
 
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
     // Use Expo CLI to bundle the app, this ensures the Metro config
@@ -81,6 +89,19 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/** Локальный Play Store signing: см. mobile/docs/ANDROID_RELEASE_SIGNING.md */
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def hasUploadKeystore =
+    keystorePropertiesFile.exists() &&
+        keystoreProperties['storeFile'] &&
+        keystoreProperties['storePassword'] &&
+        keystoreProperties['keyAlias'] &&
+        keystoreProperties['keyPassword']
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -92,10 +113,11 @@ android {
         applicationId 'uno.mygarage.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "3.0.1"
+        versionCode 12
+        versionName "3.0.5"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        buildConfigField "boolean", "STANDALONE_DEBUG", "false"
     }
     signingConfigs {
         debug {
@@ -104,15 +126,27 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (hasUploadKeystore) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            buildConfigField "boolean", "STANDALONE_DEBUG", "${standaloneDebugApk}"
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (hasUploadKeystore) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+                println("release: keystore.properties не найден или неполный — подпись DEBUG (только для тестов, не для Google Play).")
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

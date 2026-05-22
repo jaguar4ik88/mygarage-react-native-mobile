@@ -203,6 +203,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onBack, navigat
       'model_recommendations': t('subscription.features.modelRecommendations') || 'Рекомендации по модели',
       'expenses_statistics': t('subscription.features.expensesStatistics') || 'Статистика трат',
       'expenses_history': t('subscription.features.expensesHistory') || 'История трат',
+      'reports': t('subscription.features.reports') || 'Отчёты и аналитика',
       'photo_documents': t('subscription.features.photoDocuments') || 'Фото документов',
       'receipt_photos': t('subscription.features.receiptPhotos') || 'Фото чеков',
       'pdf_export': t('subscription.features.pdfExport') || 'Экспорт в PDF',
