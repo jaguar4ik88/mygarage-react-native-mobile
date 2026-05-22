@@ -1,6 +1,6 @@
 {
   "name": "mobile-clean",
-  "version": "3.0.1",
+  "version": "3.0.5",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -19,6 +19,7 @@
     "cache:clear": "rm -rf node_modules/.cache && watchman watch-del-all 2>/dev/null || true",
     "daily:cleanup": "./scripts/daily-cleanup.sh",
     "daily:cleanup:full": "./scripts/daily-cleanup.sh --full",
+    "android:apk:standalone": "NODE_ENV=development cd android && ./gradlew assembleDebug -PstandaloneDebug=true",
     "postinstall": "node scripts/fix-podfile.js"
   },
   "dependencies": {

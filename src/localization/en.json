@@ -442,6 +442,7 @@
     "signInInProgress": "Sign in is already in progress",
     "playServicesNotAvailable": "Google Play Services not available",
     "googleSignInConfigError": "Google Sign-In configuration error. Please contact support.",
+    "googleDeveloperError": "Couldn't sign in with Google. Try email sign-in or again later.",
     "googleSignInFailed": "Failed to sign in with Google"
   },
   "forgotPassword": {
@@ -595,6 +596,7 @@
     "vehicleLimitPremiumMessage": "You have reached the maximum number of vehicles for your current subscription.",
     "pdfExportRequiresPro": "PDF export is only available for PRO subscribers",
     "documentsRequiresPro": "Document storage is available with PRO subscription",
+    "reportsRequiresPro": "Reports and analytics are available with PRO subscription or higher",
     "duration": "Duration",
     "days": "days",
     "year": "year",
@@ -622,6 +624,7 @@
       "modelRecommendations": "Model recommendations",
       "expensesStatistics": "Expense statistics",
       "expensesHistory": "Expense history",
+      "reports": "Reports and analytics",
       "photoDocuments": "Photo documents",
       "photoDocumentsDesc": "Store photos of all vehicle documents (insurance, power of attorney, certificates) in one place",
       "receiptPhotos": "Receipt photos",

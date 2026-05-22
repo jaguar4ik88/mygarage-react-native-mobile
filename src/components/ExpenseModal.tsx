@@ -166,11 +166,13 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({
   }, [visible, editingRecord, initialVehicleId, expenseTypes]);
 
   const pickReceiptPhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Ошибка', 'Необходимо разрешение для доступа к фото');
-      return;
+    // Android: use system Photo Picker without READ_MEDIA_*; iOS still needs library permission.
+    if (Platform.OS === 'ios') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Ошибка', 'Необходимо разрешение для доступа к фото');
+        return;
+      }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({

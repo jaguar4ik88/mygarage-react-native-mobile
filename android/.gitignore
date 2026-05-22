@@ -8,6 +8,9 @@ build/
 .idea
 .gradle
 local.properties
+
+# Upload keystore для Google Play (не коммитить)
+keystore.properties
 *.iml
 *.hprof
 .cxx/

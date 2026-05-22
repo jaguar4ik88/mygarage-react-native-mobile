@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,15 @@ import {
   Platform,
   Alert,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Button from '../components/Button';
 import Input from '../components/Input';
 import ScreenBackLink from '../components/ScreenBackLink';
 import { COLORS, FONTS, SPACING } from '../constants';
 import ApiService from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import Analytics from '../services/analyticsService';
 
 interface ForgotPasswordScreenProps {
@@ -25,6 +26,7 @@ interface ForgotPasswordScreenProps {
 
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation }) => {
   const { t } = useLanguage();
+  const { appearanceKey } = useTheme();
   const [step, setStep] = useState<'email' | 'reset'>('email');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -34,6 +36,72 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
     confirmPassword: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: COLORS.background,
+        },
+        keyboardView: {
+          flex: 1,
+        },
+        scrollContent: {
+          flexGrow: 1,
+          paddingHorizontal: SPACING.lg,
+          paddingTop: SPACING.sm,
+          paddingBottom: SPACING.xxl,
+          justifyContent: 'center',
+        },
+        pageTitle: {
+          fontSize: 28,
+          fontFamily: FONTS.bold,
+          letterSpacing: -0.4,
+          color: COLORS.text,
+        },
+        pageSub: {
+          marginTop: 6,
+          fontSize: 14,
+          fontFamily: FONTS.regular,
+          color: COLORS.textSecondary,
+          marginBottom: SPACING.lg,
+        },
+        form: {
+          width: '100%',
+        },
+        /** Как primaryBtn на AuthScreen — полная «таблетка», не RADIUS.button */
+        primaryBtn: {
+          marginTop: SPACING.sm,
+          backgroundColor: COLORS.accent,
+          borderRadius: 999,
+          paddingVertical: 14,
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 52,
+        },
+        primaryBtnDisabled: {
+          opacity: 0.75,
+        },
+        primaryBtnText: {
+          fontSize: 13,
+          fontFamily: FONTS.bold,
+          letterSpacing: 1.4,
+          color: COLORS.background,
+        },
+        footerBackLink: {
+          marginTop: SPACING.lg,
+          alignItems: 'center',
+          padding: SPACING.sm,
+        },
+        footerBackLinkText: {
+          fontSize: 11,
+          fontFamily: FONTS.medium,
+          color: COLORS.textSecondary,
+        },
+      }),
+    [appearanceKey]
+  );
 
   const validateEmail = () => {
     const newErrors: Record<string, string> = {};
@@ -76,7 +144,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
     try {
       await ApiService.forgotPassword(formData.email);
       await Analytics.track('password_reset_code_sent');
-      
+
       Alert.alert(
         t('forgotPassword.emailSent'),
         t('forgotPassword.emailSentMessage'),
@@ -84,14 +152,14 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
       );
     } catch (error: any) {
       await Analytics.track('password_reset_code_failed');
-      
+
       let errorMessage = t('common.error');
       if (error.message?.includes('exists')) {
         errorMessage = t('forgotPassword.errors.emailNotFound');
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       Alert.alert(t('common.error'), errorMessage);
     } finally {
       setLoading(false);
@@ -109,9 +177,9 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
         formData.password,
         formData.confirmPassword
       );
-      
+
       await Analytics.track('password_reset_success');
-      
+
       Alert.alert(
         t('forgotPassword.passwordReset'),
         t('forgotPassword.passwordResetMessage'),
@@ -124,14 +192,14 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
       );
     } catch (error: any) {
       await Analytics.track('password_reset_failed');
-      
+
       let errorMessage = t('common.error');
       if (error.message?.includes('token') || error.message?.includes('Invalid')) {
         errorMessage = t('forgotPassword.invalidToken');
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       Alert.alert(t('common.error'), errorMessage);
     } finally {
       setLoading(false);
@@ -139,9 +207,9 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -149,14 +217,22 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
     navigation.navigate('Auth');
   };
 
+  const primaryLabel =
+    step === 'email'
+      ? t('forgotPassword.sendLink')
+      : t('forgotPassword.resetPassword');
+
+  const onPrimaryPress = step === 'email' ? handleSendCode : handleResetPassword;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <ScreenBackLink
@@ -165,15 +241,12 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
             uppercase={false}
           />
 
-          <View style={styles.header}>
-            <Text style={styles.logo}>myGarage</Text>
-            <Text style={styles.title}>{t('forgotPassword.title')}</Text>
-            <Text style={styles.subtitle}>
-              {step === 'email'
-                ? t('forgotPassword.subtitle')
-                : t('forgotPassword.emailSentMessage')}
-            </Text>
-          </View>
+          <Text style={styles.pageTitle}>{t('forgotPassword.title')}</Text>
+          <Text style={styles.pageSub}>
+            {step === 'email'
+              ? t('forgotPassword.subtitle')
+              : t('forgotPassword.emailSentMessage')}
+          </Text>
 
           <View style={styles.form}>
             {step === 'email' ? (
@@ -189,14 +262,21 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
                   spellCheck={false}
                   textContentType="emailAddress"
                   placeholder={t('forgotPassword.emailPlaceholder')}
+                  inputStyle={{ backgroundColor: COLORS.surface }}
                 />
 
-                <Button
-                  title={t('forgotPassword.sendLink')}
-                  onPress={handleSendCode}
-                  loading={loading}
-                  style={styles.submitButton}
-                />
+                <TouchableOpacity
+                  style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+                  onPress={onPrimaryPress}
+                  disabled={loading}
+                  activeOpacity={0.9}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.background} />
+                  ) : (
+                    <Text style={styles.primaryBtnText}>{primaryLabel.toUpperCase()}</Text>
+                  )}
+                </TouchableOpacity>
               </>
             ) : (
               <>
@@ -208,6 +288,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
                   autoCapitalize="characters"
                   autoCorrect={false}
                   spellCheck={false}
+                  inputStyle={{ backgroundColor: COLORS.surface }}
                 />
 
                 <Input
@@ -220,6 +301,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
                   autoCapitalize="none"
                   spellCheck={false}
                   textContentType="newPassword"
+                  inputStyle={{ backgroundColor: COLORS.surface }}
                 />
 
                 <Input
@@ -232,25 +314,30 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
                   autoCapitalize="none"
                   spellCheck={false}
                   textContentType="newPassword"
+                  inputStyle={{ backgroundColor: COLORS.surface }}
                 />
 
-                <Button
-                  title={t('forgotPassword.resetPassword')}
-                  onPress={handleResetPassword}
-                  loading={loading}
-                  style={styles.submitButton}
-                />
+                <TouchableOpacity
+                  style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+                  onPress={onPrimaryPress}
+                  disabled={loading}
+                  activeOpacity={0.9}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.background} />
+                  ) : (
+                    <Text style={styles.primaryBtnText}>{primaryLabel.toUpperCase()}</Text>
+                  )}
+                </TouchableOpacity>
               </>
             )}
 
             <TouchableOpacity
               onPress={handleBackToLogin}
               style={styles.footerBackLink}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
-              <Text style={styles.footerBackLinkText}>
-                {t('forgotPassword.backToLogin')}
-              </Text>
+              <Text style={styles.footerBackLinkText}>{t('forgotPassword.backToLogin')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -259,58 +346,4 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: SPACING.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: SPACING.xxl,
-  },
-  logo: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    marginBottom: SPACING.sm,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.md,
-  },
-  form: {
-    width: '100%',
-  },
-  submitButton: {
-    marginTop: SPACING.lg,
-  },
-  footerBackLink: {
-    marginTop: SPACING.md,
-    alignItems: 'center',
-    padding: SPACING.md,
-  },
-  footerBackLinkText: {
-    fontSize: 16,
-    fontFamily: FONTS.semiBold,
-    color: COLORS.accent,
-  },
-});
-
 export default ForgotPasswordScreen;
-

@@ -26,6 +26,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 import TermsOfServiceScreen from './TermsOfServiceScreen';
+import AppStackHeader from '../components/AppStackHeader';
 
 interface ProfileScreenProps {
   onBack: () => void;
@@ -230,6 +231,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <AppStackHeader
+        title={t('profile.title')}
+        onBack={navigation?.canGoBack?.() ? () => navigation.goBack() : undefined}
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

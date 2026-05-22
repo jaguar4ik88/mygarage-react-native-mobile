@@ -1,14 +1,12 @@
-import { GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from '@env';
+import { GOOGLE_WEB_CLIENT_ID } from '@env';
 import { Platform } from 'react-native';
 
 /**
  * Authentication configuration
  * 
- * Google Sign-In:
- * - webClientId: Web Client ID - используется на всех платформах для верификации
- * - iosClientId: iOS Client ID - нужен только для iOS устройств
- * 
- * Оба загружаются из .env файла
+ * Google OAuth:
+ * - webClientId: только OAuth-клиент типа «Веб-приложение» (.apps.googleusercontent.com).
+ *   На iOS client id приложения берётся из GoogleService-Info.plist (CLIENT_ID).
  * 
  * Apple Sign-In:
  * - Настраивается автоматически через app.json
@@ -16,13 +14,16 @@ import { Platform } from 'react-native';
 
 export const AUTH_CONFIG = {
   google: {
+    /**
+     * Сервер OAuth 2 клиент типа «Веб-приложение» из GCP/Firebase (не iOS клиент!).
+     * Нужен для idToken аудитории / serverClientID в GIDSignIn на iOS.
+     */
     webClientId: GOOGLE_WEB_CLIENT_ID,
-    // Для iOS используем GOOGLE_IOS_CLIENT_ID из .env
-    // iosClientId должен быть БЕЗ .apps.googleusercontent.com (только ID часть)
-    ...(Platform.OS === 'ios' && GOOGLE_IOS_CLIENT_ID && {
-      iosClientId: GOOGLE_IOS_CLIENT_ID.replace('.apps.googleusercontent.com', ''),
-    }),
-    offlineAccess: true,
+    /**
+     * false на iOS: см. офлайн / server auth (redirect_uri 400 при true).
+     * Android: можно true, если реально нужен server auth code.
+     */
+    offlineAccess: Platform.OS !== 'ios',
   },
   
   apple: {

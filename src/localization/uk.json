@@ -442,6 +442,7 @@
     "signInInProgress": "Вхід вже виконується",
     "playServicesNotAvailable": "Сервіси Google Play недоступні",
     "googleSignInConfigError": "Помилка конфігурації Google Sign-In. Будь ласка, зв'яжіться зі службою підтримки.",
+    "googleDeveloperError": "Не вдалося увійти через Google. Спробуйте email або пізніше.",
     "googleSignInFailed": "Не вдалося увійти через Google"
   },
   "forgotPassword": {
@@ -595,6 +596,7 @@
     "vehicleLimitPremiumMessage": "Досягнуто максимальну кількість автомобілів для вашої поточної підписки.",
     "pdfExportRequiresPro": "Експорт у PDF доступний тільки для PRO підписників",
     "documentsRequiresPro": "Зберігання документів доступне за підпискою PRO",
+    "reportsRequiresPro": "Розділ «Звіти» доступний для PRO та вище",
     "duration": "Тривалість",
     "days": "днів",
     "year": "рік",
@@ -624,6 +626,7 @@
       "modelRecommendations": "Рекомендації по моделі",
       "expensesStatistics": "Статистика витрат",
       "expensesHistory": "Історія витрат",
+      "reports": "Звіти та аналітика",
       "photoDocuments": "Фото документів",
       "photoDocumentsDesc": "Зберігайте фотографії всіх документів автомобіля (страховка, довіреність, сертифікати) в одному місці",
       "receiptPhotos": "Фото чеків",

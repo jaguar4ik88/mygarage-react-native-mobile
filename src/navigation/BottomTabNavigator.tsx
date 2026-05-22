@@ -174,7 +174,6 @@ const RemindersStackScreen: React.FC = () => {
 
 
 const HistoryStackScreen: React.FC = () => {
-  const { t } = useLanguage();
   return (
     <Stack.Navigator
       screenOptions={(props) => ({
@@ -185,7 +184,12 @@ const HistoryStackScreen: React.FC = () => {
         ...stackHeaderLeftOptions(props.navigation),
       })}
     >
-      <Stack.Screen name="HistoryRoot" options={{ title: t('history.title') }}>
+      <Stack.Screen
+        name="HistoryRoot"
+        options={{
+          headerShown: false,
+        }}
+      >
         {({ navigation }) => <HistoryScreen navigation={navigation} />}
       </Stack.Screen>
     </Stack.Navigator>
@@ -193,7 +197,6 @@ const HistoryStackScreen: React.FC = () => {
 };
 
 const ActionsStackScreen: React.FC = () => {
-  const { t } = useLanguage();
   return (
     <Stack.Navigator
       screenOptions={(props) => ({
@@ -201,11 +204,15 @@ const ActionsStackScreen: React.FC = () => {
         headerTintColor: stackHeaderTintColor(),
         headerTitleStyle: stackHeaderTitleStyle(),
         headerTitleAlign: 'center',
-        headerBackVisible: true,
         ...stackHeaderLeftOptions(props.navigation),
       })}
     >
-      <Stack.Screen name="ActionsRoot" options={{ title: t('actions.title') }}>
+      <Stack.Screen
+        name="ActionsRoot"
+        options={{
+          headerShown: false,
+        }}
+      >
         {({ navigation }) => (
           <ActionsScreen
             navigation={navigation}
@@ -346,6 +353,14 @@ const BottomTabNavigator: React.FC<BottomTabNavigatorProps> = ({
       </Tab.Screen>
 
       <Tab.Screen
+        name="History"
+        options={{
+          title: t('navigation.history'),
+        }}
+        component={HistoryStackScreen}
+      />
+
+      <Tab.Screen
         name="Advice"
         options={{
           title: t('navigation.advice'),
@@ -353,15 +368,6 @@ const BottomTabNavigator: React.FC<BottomTabNavigatorProps> = ({
       >
         {() => <AdviceStackScreen />}
       </Tab.Screen>
-
-
-      <Tab.Screen
-        name="History"
-        options={{
-          title: t('navigation.history'),
-        }}
-        component={HistoryStackScreen}
-      />
 
       <Tab.Screen
         name="Actions"

@@ -54,7 +54,6 @@ const getPlanFeatures = (planType: string): string[] => {
       'basic_manual',
       'basic_advice',
       'sto_search',
-      'basic_reports',
     ],
     pro: [
       'vehicles_limit_3',
@@ -67,6 +66,7 @@ const getPlanFeatures = (planType: string): string[] => {
       'widgets',
       'export_data',
       'advanced_reports',
+      'reports',
     ],
     premium: [
       'vehicles_unlimited',

@@ -447,6 +447,7 @@ class SubscriptionService {
         case 'photo_documents':
         case 'receipt_photos':
         case 'pdf_export':
+        case 'reports':
         case 'unlimited_vehicles':
         case 'unlimited_reminders':
         case 'expense_reminders':

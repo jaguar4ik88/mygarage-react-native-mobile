@@ -2,7 +2,7 @@
   "expo": {
     "name": "myGarage",
     "slug": "mygarage",
-    "version": "3.0.1",
+    "version": "3.0.5",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/ic_launcher/ios/AppIcon.appiconset/ItunesArtwork@2x.png",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uno.mygarage.com",
-      "buildNumber": "3",
+      "buildNumber": "5",
       "googleServicesFile": "./GoogleService-Info.plist",
       "icon": "./assets/ic_launcher/ios/AppIcon.appiconset/ItunesArtwork@2x.png",
       "usesAppleSignIn": true,
@@ -34,6 +34,11 @@
             "CFBundleURLSchemes": [
               "mygarage",
               "uno.mygarage.com"
+            ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.1041379542857-5i00r9ism77rikh77l5hn9lhednciv37"
             ]
           }
         ],
@@ -67,7 +72,7 @@
       },
       "icon": "./assets/ic_launcher/android/mipmap-xxxhdpi/ic_launcher.png",
       "package": "uno.mygarage.app",
-      "versionCode": 3,
+      "versionCode": 12,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -75,7 +80,11 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "com.google.android.gms.permission.AD_ID"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ],
       "config": {
         "googleMobileAdsAppId": ""

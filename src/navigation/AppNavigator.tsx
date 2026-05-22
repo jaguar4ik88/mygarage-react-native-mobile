@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { COLORS } from '../constants';
 import { useTheme } from '../contexts/ThemeContext';
@@ -269,6 +269,8 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
             headerTintColor: stackHeaderTintColor(),
             headerTitleStyle: stackHeaderTitleStyle(),
             headerTitleAlign: 'center',
+            /** с кастомным headerLeft на iOS иначе система может смешивать нативный back + наш */
+            ...(Platform.OS === 'ios' ? { headerBackTitleVisible: false } : {}),
             ...stackHeaderLeftOptions(navProps.navigation),
           })}
         >
@@ -338,11 +340,7 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
           <Stack.Screen 
             name="VehicleDetail" 
             options={{ 
-              title: t('vehicleDetail.title'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: stackHeaderTintColor(),
-              headerTitleStyle: stackHeaderTitleStyle(),
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation, route }) => (
@@ -393,11 +391,7 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
           <Stack.Screen 
             name="Profile" 
             options={{ 
-              title: t('profile.title'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: stackHeaderTintColor(),
-              headerTitleStyle: stackHeaderTitleStyle(),
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation }) => (
@@ -440,15 +434,11 @@ const AppNavigatorContent: React.FC<AppNavigatorContentProps> = ({
           <Stack.Screen 
             name="History" 
             options={{ 
-              title: t('navigation.history'),
-              headerBackTitle: t('common.back'),
-              headerTintColor: stackHeaderTintColor(),
-              headerTitleStyle: stackHeaderTitleStyle(),
-              headerTitleAlign: 'center',
+              headerShown: false,
             }}
           >
             {({ navigation }) => (
-              <HistoryScreen />
+              <HistoryScreen navigation={navigation} />
             )}
           </Stack.Screen>
 

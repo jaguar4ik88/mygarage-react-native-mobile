@@ -458,6 +458,7 @@
     "signInInProgress": "Вход уже выполняется",
     "playServicesNotAvailable": "Сервисы Google Play недоступны",
     "googleSignInConfigError": "Ошибка конфигурации Google Sign-In. Пожалуйста, свяжитесь со службой поддержки.",
+    "googleDeveloperError": "Не удалось войти через Google. Попробуйте войти по электронной почте или позже.",
     "googleSignInFailed": "Не удалось войти через Google"
   },
   "forgotPassword": {
@@ -611,6 +612,7 @@
     "vehicleLimitPremiumMessage": "Достигнуто максимальное число автомобилей для вашей текущей подписки.",
     "pdfExportRequiresPro": "Экспорт в PDF доступен только для PRO подписчиков",
     "documentsRequiresPro": "Хранение документов доступно по подписке PRO",
+    "reportsRequiresPro": "Раздел «Отчёты» доступен подписчикам PRO и выше",
     "duration": "Продолжительность",
     "days": "дней",
     "year": "год",
@@ -640,6 +642,7 @@
       "modelRecommendations": "Рекомендации по модели",
       "expensesStatistics": "Статистика расходов",
       "expensesHistory": "История расходов",
+      "reports": "Отчёты и аналитика",
       "photoDocuments": "Фото документов",
       "photoDocumentsDesc": "Храните фотографии всех документов автомобиля (страховка, доверенность, сертификаты) в одном месте",
       "receiptPhotos": "Фото чеков",
